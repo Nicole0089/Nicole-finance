@@ -76,6 +76,28 @@
   .search-result .sr-val{font-size:18px; min-width:90px; text-align:right;}
   .search-empty{padding:30px 16px; text-align:center; color:var(--sub); font-size:17px;}
 
+  .tag-badge{
+    display:inline-block; font-size:12px; color:var(--teal); background:#E0F2F1;
+    border-radius:6px; padding:1px 6px; margin-top:2px; align-self:flex-start;
+  }
+  .activity-row{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 16px;
+    border-top:1px solid var(--border); gap:10px;
+  }
+  .activity-row .ar-left{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .activity-row .ar-name{font-size:18px; font-weight:600;}
+  .activity-row .ar-meta{font-size:13px; color:var(--sub); margin-top:2px;}
+  .activity-row .ar-val{font-size:18px; color:var(--header); font-weight:600; min-width:90px; text-align:right;}
+  .activity-detail-head{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 16px;
+    background:#F1F8E9;
+  }
+  .activity-detail-head h4{margin:0; font-size:18px;}
+  .activity-detail-head .ar-actions{display:flex; gap:8px;}
+  .activity-detail-head .ar-actions button{
+    font-size:13px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:#fff; color:var(--text);
+  }
+
   .year-note-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px;}
   .year-note-card h4{margin:0 0 10px; font-size:17px; font-weight:600; color:var(--header);}
   .year-note-card textarea{
@@ -124,11 +146,14 @@
   .summary-table .totalrow td{font-weight:600; color:var(--header);}
   .table-scroll{overflow-x:auto;}
 
-  .toolbar{display:flex; gap:10px; padding:6px 16px 18px;}
+  .toolbar{display:flex; gap:10px; padding:6px 16px 4px;}
+  .toolbar-group{flex:1; display:flex; flex-direction:column; gap:4px;}
   .toolbar button{
-    flex:1; padding:11px 0; border-radius:10px; border:1px solid var(--border);
+    width:100%; padding:11px 0; border-radius:10px; border:1px solid var(--border);
     background:var(--card); font-size:17px; color:var(--text); display:flex; align-items:center; justify-content:center; gap:6px;
   }
+  .toolbar-hint{font-size:13px; color:var(--sub); text-align:center;}
+  .toolbar-section{padding:0 16px 18px;}
 
   nav.bottom{
     position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card);
@@ -198,6 +223,7 @@
 <div class="view-toggle">
   <button id="vt-month" class="active" onclick="setView('month')">月份明細</button>
   <button id="vt-year" onclick="setView('year')">年度總覽</button>
+  <button id="vt-activity" onclick="setView('activity')">活動</button>
 </div>
 
 <div id="monthTabs" class="month-tabs"></div>
@@ -206,15 +232,23 @@
   <div id="monthView"></div>
   <div id="yearView" class="hidden"></div>
   <div id="searchView" class="hidden"></div>
+  <div id="activityView" class="hidden"></div>
 
   <div class="toolbar">
-    <button onclick="addYear()">＋ 新增年度</button>
-    <button onclick="document.getElementById('fileInput').click()">匯入備份</button>
-    <button onclick="exportBackup()">匯出備份</button>
+    <div class="toolbar-group">
+      <button onclick="addYear()">＋ 新增年度</button>
+      <span class="toolbar-hint">建立下一年空白資料</span>
+    </div>
+    <div class="toolbar-group">
+      <button onclick="document.getElementById('fileInput').click()">匯入備份</button>
+      <span class="toolbar-hint">還原本機備份檔</span>
+    </div>
+    <div class="toolbar-group">
+      <button onclick="exportBackup()">匯出備份</button>
+      <span class="toolbar-hint">下載本機備份檔</span>
+    </div>
   </div>
-  <div class="toolbar">
-    <button onclick="uploadAllToCloud()">⬆ 上傳本機資料到雲端</button>
-  </div>
+
 </main>
 
 <input type="file" id="fileInput" class="file-input" accept="application/json">
@@ -255,6 +289,7 @@ let allData = {};   // { "115": { months:[1..12], data:{cat:{m:val}} } }
 let currentYear = 115;
 let currentMonth = 1;
 let currentView = 'month';
+let activityTag = null; // 目前展開檢視的活動標籤
 
 function loadState(){
   apiUrl = localStorage.getItem(API_URL_KEY) || '';
@@ -279,8 +314,9 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function ensureYear(y){
-  if(!allData[y]) allData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+  if(!allData[y]) allData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, tags:{}, yearNote:'' };
   if(!allData[y].notes) allData[y].notes = {};
+  if(!allData[y].tags) allData[y].tags = {};
   if(allData[y].yearNote===undefined) allData[y].yearNote = '';
 }
 function getNote(y, cat, m){
@@ -291,6 +327,24 @@ function setNote(y, cat, m, note){
   if(!allData[y].notes[cat]) allData[y].notes[cat] = {};
   if(note){ allData[y].notes[cat][m] = note; }
   else { delete allData[y].notes[cat][m]; if(Object.keys(allData[y].notes[cat]).length===0) delete allData[y].notes[cat]; }
+}
+function getTag(y, cat, m){
+  return (allData[y].tags && allData[y].tags[cat] && allData[y].tags[cat][m]) || '';
+}
+function setTag(y, cat, m, tag){
+  ensureYear(y);
+  if(!allData[y].tags[cat]) allData[y].tags[cat] = {};
+  if(tag){ allData[y].tags[cat][m] = tag; }
+  else { delete allData[y].tags[cat][m]; if(Object.keys(allData[y].tags[cat]).length===0) delete allData[y].tags[cat]; }
+}
+function allTagNames(){
+  const set = new Set();
+  for(const y in allData){
+    for(const cat in (allData[y].tags||{})){
+      for(const m in allData[y].tags[cat]){ if(allData[y].tags[cat][m]) set.add(allData[y].tags[cat][m]); }
+    }
+  }
+  return Array.from(set).sort();
 }
 function yearTotal(y){
   ensureYear(y);
@@ -330,6 +384,7 @@ function render(){
   renderMonthTabs();
   if(currentView==='month') renderMonthView();
   else if(currentView==='year') renderYearView();
+  else if(currentView==='activity') renderActivityView();
   else renderSearchView();
 }
 
@@ -352,6 +407,7 @@ function renderMonthView(){
   document.getElementById('monthView').classList.remove('hidden');
   document.getElementById('yearView').classList.add('hidden');
   document.getElementById('searchView').classList.add('hidden');
+  document.getElementById('activityView').classList.add('hidden');
   document.getElementById('monthLabel').textContent = currentMonth + '月支出';
   document.getElementById('monthTotal').textContent = fmt(monthTotal(currentYear, currentMonth));
 
@@ -371,7 +427,8 @@ function renderMonthView(){
       row.className = 'item-row';
       const val = (allData[currentYear].data[cat] && allData[currentYear].data[cat][currentMonth]) || '';
       const note = getNote(currentYear, cat, currentMonth);
-      row.innerHTML = `<div class="iname-wrap"><span class="iname">${cat}</span>${note?`<span class="inote">${escapeHtml(note)}</span>`:''}</div><span class="ival ${val===''?'empty':''}">${val===''?'—':Number(val).toLocaleString('zh-Hant')}</span>`;
+      const tag = getTag(currentYear, cat, currentMonth);
+      row.innerHTML = `<div class="iname-wrap"><span class="iname">${cat}</span>${note?`<span class="inote">${escapeHtml(note)}</span>`:''}${tag?`<span class="tag-badge">${escapeHtml(tag)}</span>`:''}</div><span class="ival ${val===''?'empty':''}">${val===''?'—':Number(val).toLocaleString('zh-Hant')}</span>`;
       bindRowPress(row, cat, val, g);
       gdiv.appendChild(row);
     });
@@ -392,6 +449,7 @@ function renderYearView(){
   document.getElementById('monthView').classList.add('hidden');
   document.getElementById('yearView').classList.remove('hidden');
   document.getElementById('searchView').classList.add('hidden');
+  document.getElementById('activityView').classList.add('hidden');
   document.getElementById('monthLabel').textContent = '本年累計';
   document.getElementById('monthTotal').textContent = fmt(yearTotal(currentYear));
 
@@ -473,8 +531,10 @@ function saveYearNote(year, text, hint){
 /* ===================== 互動 ===================== */
 function setView(v){
   currentView = v;
+  if(v!=='activity') activityTag = null;
   document.getElementById('vt-month').classList.toggle('active', v==='month');
   document.getElementById('vt-year').classList.toggle('active', v==='year');
+  document.getElementById('vt-activity').classList.toggle('active', v==='activity');
   render();
 }
 
@@ -487,6 +547,7 @@ function openSearch(){
 function renderSearchView(){
   document.getElementById('monthView').classList.add('hidden');
   document.getElementById('yearView').classList.add('hidden');
+  document.getElementById('activityView').classList.add('hidden');
   const wrap = document.getElementById('searchView');
   wrap.classList.remove('hidden');
   document.getElementById('monthLabel').textContent = '跨年度搜尋';
@@ -557,6 +618,155 @@ function renderSearchResults(){
   });
 }
 
+/* ===================== 活動Package ===================== */
+function collectActivities(){
+  // 回傳 { tagName: { total, entries:[{y,m,cat,amount,note}] } }
+  const map = {};
+  const years = Object.keys(allData).map(Number).sort((a,b)=>b-a);
+  years.forEach(y=>{
+    const months = (allData[y].months||[]).slice().sort((a,b)=>b-a);
+    months.forEach(m=>{
+      for(const cat in (allData[y].tags||{})){
+        const tag = allData[y].tags[cat][m];
+        if(!tag) continue;
+        const amount = (allData[y].data[cat] && allData[y].data[cat][m]) || 0;
+        const note = getNote(y, cat, m);
+        if(!map[tag]) map[tag] = { total:0, entries:[] };
+        map[tag].total += Number(amount)||0;
+        map[tag].entries.push({y, m, cat, amount, note});
+      }
+    });
+  });
+  return map;
+}
+
+function renderActivityView(){
+  document.getElementById('monthView').classList.add('hidden');
+  document.getElementById('yearView').classList.add('hidden');
+  document.getElementById('searchView').classList.add('hidden');
+  const wrap = document.getElementById('activityView');
+  wrap.classList.remove('hidden');
+
+  const activities = collectActivities();
+
+  if(activityTag && activities[activityTag]){
+    renderActivityDetail(wrap, activityTag, activities[activityTag]);
+    return;
+  }
+  activityTag = null;
+
+  document.getElementById('monthLabel').textContent = '活動Package';
+  document.getElementById('monthTotal').textContent = '—';
+
+  const tagNames = Object.keys(activities).sort((a,b)=>activities[b].total-activities[a].total);
+  if(!tagNames.length){
+    wrap.innerHTML = '<div class="search-empty">尚未建立任何活動標籤。<br>編輯任一支出項目時，可在「活動標籤」欄位輸入名稱(例如「東京旅行」)，把相關支出歸納在一起。</div>';
+    return;
+  }
+
+  let html = '<div class="group">';
+  tagNames.forEach(tag=>{
+    const a = activities[tag];
+    html += `<div class="activity-row" data-tag="${escapeHtml(tag)}">
+      <div class="ar-left">
+        <span class="ar-name">${escapeHtml(tag)}</span>
+        <span class="ar-meta">共 ${a.entries.length} 筆紀錄</span>
+      </div>
+      <span class="ar-val">${fmt(a.total)}</span>
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.activity-row').forEach(el=>{
+    el.onclick = ()=>{ activityTag = el.dataset.tag; render(); };
+  });
+}
+
+function renderActivityDetail(wrap, tag, activity){
+  document.getElementById('monthLabel').textContent = '活動：' + tag;
+  document.getElementById('monthTotal').textContent = fmt(activity.total);
+
+  let html = `<div class="group">
+    <div class="activity-detail-head">
+      <h4>${escapeHtml(tag)}</h4>
+      <div class="ar-actions">
+        <button onclick="renameActivityTag('${escapeHtml(tag)}')">重新命名</button>
+        <button onclick="deleteActivityTag('${escapeHtml(tag)}')">刪除標籤</button>
+      </div>
+    </div>`;
+  const entries = activity.entries.slice().sort((x,y)=> y.y-x.y || y.m-x.m);
+  entries.forEach(e=>{
+    html += `<div class="search-result" data-y="${e.y}" data-m="${e.m}">
+      <div class="sr-left">
+        <span class="sr-cat">${escapeHtml(e.cat)}</span>
+        <span class="sr-meta">${e.y}年 ${e.m}月</span>
+        ${e.note?`<span class="sr-note">${escapeHtml(e.note)}</span>`:''}
+      </div>
+      <span class="sr-val">${e.amount? Number(e.amount).toLocaleString('zh-Hant') : '—'}</span>
+    </div>`;
+  });
+  html += '</div>';
+  html += `<div class="toolbar" style="padding:6px 0 18px;"><div class="toolbar-group"><button onclick="activityTag=null; render();">‹ 返回活動列表</button></div></div>`;
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.search-result').forEach(el=>{
+    el.onclick = ()=>{
+      currentYear = Number(el.dataset.y);
+      currentMonth = Number(el.dataset.m);
+      activityTag = null;
+      setView('month');
+    };
+  });
+}
+
+function renameActivityTag(oldTag){
+  showModal('重新命名活動標籤', [
+    {label:'新名稱', type:'text', value:oldTag, id:'name'}
+  ], (vals)=>{
+    const newTag = (vals.name||'').trim();
+    if(!newTag || newTag===oldTag) return;
+    for(const y in allData){
+      for(const cat in (allData[y].tags||{})){
+        for(const m in allData[y].tags[cat]){
+          if(allData[y].tags[cat][m]===oldTag) allData[y].tags[cat][m] = newTag;
+        }
+      }
+    }
+    saveData();
+    syncAllTags();
+    activityTag = newTag;
+    render();
+    toast('已重新命名為「'+newTag+'」');
+  }, '儲存');
+}
+
+function deleteActivityTag(tag){
+  showModal('刪除活動標籤「'+tag+'」', [
+    {label:'將移除這個標籤，但不會刪除原本的支出金額與備註。此動作無法復原，確定刪除？', type:'info'}
+  ], ()=>{
+    for(const y in allData){
+      for(const cat in (allData[y].tags||{})){
+        for(const m in allData[y].tags[cat]){
+          if(allData[y].tags[cat][m]===tag) delete allData[y].tags[cat][m];
+        }
+        if(Object.keys(allData[y].tags[cat]).length===0) delete allData[y].tags[cat];
+      }
+    }
+    saveData();
+    syncAllTags();
+    activityTag = null;
+    render();
+    toast('已刪除活動標籤');
+  }, '刪除', true);
+}
+
+async function syncAllTags(){
+  if(!apiUrl) return;
+  // 標籤批量變更(重新命名/刪除)後，整批重新上傳資料以同步雲端
+  await uploadAllToCloud();
+}
+
 function changeYear(delta){
   const years = Object.keys(allData).map(Number).sort((a,b)=>a-b);
   let idx = years.indexOf(currentYear);
@@ -587,9 +797,11 @@ function addYear(){
 
 function editValue(cat, currentVal){
   const currentNote = getNote(currentYear, cat, currentMonth);
+  const currentTag = getTag(currentYear, cat, currentMonth);
   showModal(cat + ' － ' + currentMonth + '月', [
     {label:'金額 (NT$)', type:'number', value:currentVal, id:'val'},
-    {label:'備註', type:'textarea', value:currentNote, id:'note', placeholder:'例如：項目內容、用途說明...'}
+    {label:'備註', type:'textarea', value:currentNote, id:'note', placeholder:'例如：項目內容、用途說明...'},
+    {label:'活動標籤(選填)', type:'tag', value:currentTag, id:'tag', placeholder:'例如：東京旅行'}
   ], (vals)=>{
     const num = vals.val === '' ? null : Number(vals.val);
     if(!allData[currentYear].data[cat]) allData[currentYear].data[cat] = {};
@@ -600,8 +812,10 @@ function editValue(cat, currentVal){
     }
     const note = (vals.note||'').trim();
     setNote(currentYear, cat, currentMonth, note);
+    const tag = (vals.tag||'').trim();
+    setTag(currentYear, cat, currentMonth, tag);
     saveData();
-    syncCell(currentYear, cat, currentMonth, num, note);
+    syncCell(currentYear, cat, currentMonth, num, note, tag);
     render();
   }, '儲存', true);
 }
@@ -668,6 +882,14 @@ function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
     } else if(f.type==='textarea'){
       html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
       html += `<textarea id="modal_${f.id}" placeholder="${f.placeholder?escapeHtml(f.placeholder):''}">${f.value!==undefined?escapeHtml(f.value):''}</textarea>`;
+    } else if(f.type==='button'){
+      html += `<button type="button" onclick="${f.onclick}" style="width:100%; padding:11px 0; border-radius:8px; font-size:17px; border:1px solid ${f.danger?'var(--red)':'var(--border)'}; background:#fff; color:${f.danger?'var(--red)':'var(--text)'}; margin-bottom:12px;">${f.label}</button>`;
+    } else if(f.type==='tag'){
+      html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
+      html += `<input type="text" id="modal_${f.id}" list="modal_${f.id}_list" placeholder="${f.placeholder?escapeHtml(f.placeholder):''}" value="${f.value!==undefined?escapeHtml(f.value):''}">`;
+      html += `<datalist id="modal_${f.id}_list">`;
+      allTagNames().forEach(t=>{ html += `<option value="${escapeHtml(t)}"></option>`; });
+      html += '</datalist>';
     } else {
       html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
       html += `<input type="${f.type}" id="modal_${f.id}" value="${f.value!==undefined?escapeHtml(f.value):''}" ${f.type==='number'?'inputmode="decimal"':''}>`;
@@ -706,16 +928,18 @@ function setSyncIcon(state){
 function flatRowsFromData(){
   const rows = [];
   for(const y in allData){
-    const cats = new Set([...Object.keys(allData[y].data||{}), ...Object.keys(allData[y].notes||{})]);
+    const cats = new Set([...Object.keys(allData[y].data||{}), ...Object.keys(allData[y].notes||{}), ...Object.keys(allData[y].tags||{})]);
     cats.forEach(cat=>{
       const months = new Set([
         ...Object.keys((allData[y].data||{})[cat]||{}),
-        ...Object.keys((allData[y].notes||{})[cat]||{})
+        ...Object.keys((allData[y].notes||{})[cat]||{}),
+        ...Object.keys((allData[y].tags||{})[cat]||{})
       ]);
       months.forEach(m=>{
         const v = (allData[y].data[cat]||{})[m];
         const note = (allData[y].notes[cat]||{})[m] || '';
-        if(v || note) rows.push({year:Number(y), category:cat, month:Number(m), amount:Number(v)||0, note});
+        const tag = (allData[y].tags[cat]||{})[m] || '';
+        if(v || note || tag) rows.push({year:Number(y), category:cat, month:Number(m), amount:Number(v)||0, note, tag});
       });
     });
   }
@@ -726,7 +950,7 @@ function rebuildDataFromRows(rows, yearNotes){
   const newData = {};
   rows.forEach(r=>{
     const y = String(r.year);
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, tags:{}, yearNote:'' };
     if(r.amount){
       if(!newData[y].data[r.category]) newData[y].data[r.category] = {};
       newData[y].data[r.category][String(r.month)] = r.amount;
@@ -735,15 +959,19 @@ function rebuildDataFromRows(rows, yearNotes){
       if(!newData[y].notes[r.category]) newData[y].notes[r.category] = {};
       newData[y].notes[r.category][String(r.month)] = r.note;
     }
+    if(r.tag){
+      if(!newData[y].tags[r.category]) newData[y].tags[r.category] = {};
+      newData[y].tags[r.category][String(r.month)] = r.tag;
+    }
   });
   // 保留原本已知的年度範圍(即使雲端尚無資料)
   for(const y in allData){
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, tags:{}, yearNote:'' };
   }
   // 套用年度備註
   if(yearNotes){
     for(const y in yearNotes){
-      if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+      if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, tags:{}, yearNote:'' };
       newData[y].yearNote = yearNotes[y] || '';
     }
   }
@@ -772,11 +1000,11 @@ async function cloudPost(payload){
   });
 }
 
-async function syncCell(year, category, month, amount, note){
+async function syncCell(year, category, month, amount, note, tag){
   if(!apiUrl) return;
   setSyncIcon('busy');
   try{
-    await cloudPost({ action:'set', year, category, month, amount, note });
+    await cloudPost({ action:'set', year, category, month, amount, note, tag });
     setSyncIcon('idle');
   }catch(err){ setSyncIcon('error'); toast('雲端同步失敗，稍後會自動再試'); }
 }
@@ -861,13 +1089,22 @@ function openSettings(){
   showModal('雲端同步設定', [
     {label:'貼上Google Apps Script的網頁應用程式網址(.../exec)，每次新增/修改會自動同步。', type:'info'},
     {label:'Apps Script網址', type:'text', value:apiUrl, id:'url'},
-    {label:'設定完成後，若這是第一次連接，請按下方「上傳本機資料到雲端」把目前資料寫入Sheet；之後其他裝置可用右上角☁圖示「從雲端同步」。', type:'info'}
+    {label:'設定完成後，若這是第一次連接，可使用下方按鈕把目前本機資料寫入Sheet；之後其他裝置可用右上角☁圖示「從雲端同步」。', type:'info'},
+    {label:'⬆ 上傳本機資料到雲端', type:'button', onclick:'confirmUploadToCloud()', danger:true}
   ], (vals)=>{
     apiUrl = (vals.url||'').trim();
     localStorage.setItem(API_URL_KEY, apiUrl);
     if(apiUrl){ toast('已儲存雲端設定'); setSyncIcon('idle'); }
     else { toast('已關閉雲端同步'); setSyncIcon('off'); }
   }, '儲存');
+}
+
+function confirmUploadToCloud(){
+  showModal('上傳本機資料到雲端', [
+    {label:'此操作會用「目前手機本機的資料」整批覆蓋雲端Google Sheet，雲端現有資料將被取代且無法復原。僅在第一次設定同步、或確定要強制以本機資料為準時使用。確定要繼續嗎？', type:'info'}
+  ], ()=>{
+    uploadAllToCloud();
+  }, '確定上傳', true);
 }
 
 function exportBackup(){
