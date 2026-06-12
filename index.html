@@ -1,705 +1,104 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>歷年支出明細</title>
-<style>
-  :root{
-    --header:#1B5E20;
-    --teal:#00695C;
-    --orange:#E65100;
-    --bg:#F5F5F0;
-    --card:#FFFFFF;
-    --border:#E0E0DA;
-    --text:#212121;
-    --sub:#757575;
-    --green:#2E7D32;
-    --red:#C62828;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
-  body{
-    margin:0; font-family:-apple-system,"Helvetica Neue","PingFang TC","Microsoft JhengHei",sans-serif;
-    background:var(--bg); color:var(--text); padding-bottom:74px; font-size:17px;
-  }
-  header{
-    background:var(--header); color:#E8F5E9; padding:16px 18px 14px;
-    position:sticky; top:0; z-index:20;
-  }
-  header .top-row{display:flex; align-items:center; justify-content:space-between;}
-  header .year-switch{display:flex; align-items:center; gap:10px;}
-  header .year-switch button{
-    background:rgba(255,255,255,0.15); border:none; color:#fff; width:32px; height:32px;
-    border-radius:8px; font-size:18px; line-height:1;
-  }
-  header .year-label{font-size:20px; font-weight:600;}
-  header .year-sub{font-size:13px; opacity:0.85; margin-top:2px;}
-  .icon-btn{background:rgba(255,255,255,0.15); border:none; color:#fff; width:34px; height:34px; border-radius:8px; font-size:16px;}
+// ========= 財務管家 - 支出明細 雲端同步 Apps Script =========
+// 部署方式：
+// 1. 在Google Sheet選單「擴充功能 → Apps Script」
+// 2. 刪除預設程式碼，貼上這整份
+// 3. 點「部署 → 新增部署作業」
+//    類型選「網頁應用程式」
+//    執行身分：我
+//    具有存取權的使用者：任何人
+// 4. 部署後會得到一個網址(.../exec)，貼到App的設定裡
 
-  .summary-cards{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px;}
-  .scard{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
-  .scard .lab{font-size:13px; color:var(--sub); margin:0 0 4px;}
-  .scard .val{font-size:21px; font-weight:600; margin:0;}
+const SHEET_DATA = 'ExpenseData';
+const SHEET_CONFIG = 'Config';
 
-  .month-tabs{display:flex; gap:6px; overflow-x:auto; padding:0 16px 10px; -webkit-overflow-scrolling:touch;}
-  .month-tabs::-webkit-scrollbar{display:none;}
-  .mtab{
-    flex:0 0 auto; padding:8px 14px; border-radius:20px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--text);
+function getDataSheet(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_DATA);
+  if(!sh){
+    sh = ss.insertSheet(SHEET_DATA);
+    sh.appendRow(['Year','Category','Month','Amount','Note']);
   }
-  .mtab.active{background:var(--teal); color:#fff; border-color:var(--teal);}
+  // 若是舊表沒有Note欄，自動補上
+  if(sh.getLastColumn() < 5) sh.getRange(1,5).setValue('Note');
+  return sh;
+}
+function getConfigSheet(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(SHEET_CONFIG);
+  if(!sh) sh = ss.insertSheet(SHEET_CONFIG);
+  return sh;
+}
 
-  .view-toggle{display:flex; gap:8px; padding:0 16px 10px;}
-  .view-toggle button{
-    flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--sub);
+// 讀取全部資料
+function doGet(e){
+  const sh = getDataSheet();
+  const rows = sh.getDataRange().getValues();
+  const data = [];
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    if(r[0]==='' || r[0]==null) continue;
+    data.push({ year:r[0], category:r[1], month:r[2], amount:r[3], note:r[4]||'' });
   }
-  .view-toggle button.active{background:var(--header); color:#fff; border-color:var(--header); font-weight:600;}
+  const cfgSheet = getConfigSheet();
+  const cfgVal = cfgSheet.getRange('A1').getValue();
+  let groups = null;
+  try{ groups = cfgVal ? JSON.parse(cfgVal) : null; }catch(err){ groups = null; }
 
-  main{padding:0 16px;}
-  .group{background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; overflow:hidden;}
-  .group-head{
-    display:flex; justify-content:space-between; align-items:center; padding:13px 16px;
-    background:#F1F8E9; font-weight:600; font-size:16px;
-  }
-  .group-head .gsum{font-weight:600; color:var(--header);}
-  .item-row{
-    display:flex; justify-content:space-between; align-items:center; padding:13px 16px;
-    border-top:1px solid var(--border); gap:10px;
-  }
-  .item-row .iname{font-size:17px; flex:1;}
-  .item-row .ival{font-size:17px; color:var(--text); min-width:90px; text-align:right;}
-  .item-row .ival.empty{color:#BDBDBD;}
-  .item-row input{
-    width:110px; text-align:right; font-size:17px; border:1px solid var(--teal);
-    border-radius:8px; padding:7px 10px; background:#fff; color:var(--text);
-  }
-  .add-item-row{padding:12px 16px; border-top:1px solid var(--border);}
-  .add-item-row button{
-    width:100%; padding:9px 0; border-radius:8px; border:1px dashed var(--border);
-    background:transparent; color:var(--sub); font-size:15px;
+  return ContentService.createTextOutput(JSON.stringify({ data: data, groups: groups }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// 寫入/更新資料 (用POST避免CORS preflight，內容用text/plain傳JSON字串)
+function doPost(e){
+  const body = JSON.parse(e.postData.contents);
+  const action = body.action;
+
+  if(action === 'set'){
+    upsertCell(body.year, body.category, body.month, body.amount, body.note);
+  } else if(action === 'setGroups'){
+    getConfigSheet().getRange('A1').setValue(JSON.stringify(body.groups));
+  } else if(action === 'deleteCategory'){
+    deleteCategoryRows(body.category);
+  } else if(action === 'bulkReplace'){
+    // 整批覆蓋(用於初次上傳本機資料 或 匯入備份)
+    const sh = getDataSheet();
+    const last = sh.getLastRow();
+    if(last>1) sh.getRange(2,1,last-1,5).clearContent();
+    const rows = body.rows.map(r=>[r.year, r.category, r.month, r.amount, r.note||'']);
+    if(rows.length) sh.getRange(2,1,rows.length,5).setValues(rows);
+    if(body.groups) getConfigSheet().getRange('A1').setValue(JSON.stringify(body.groups));
   }
 
-  .summary-table{background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:16px;}
-  .summary-table table{width:100%; border-collapse:collapse; font-size:15px;}
-  .summary-table th,.summary-table td{padding:10px 8px; text-align:right; border-top:1px solid var(--border); white-space:nowrap;}
-  .summary-table th:first-child,.summary-table td:first-child{text-align:left; position:sticky; left:0; background:var(--card);}
-  .summary-table thead th{background:#F1F8E9; border-top:none; font-weight:600;}
-  .summary-table .totalrow td{font-weight:600; color:var(--header);}
-  .table-scroll{overflow-x:auto;}
-
-  .toolbar{display:flex; gap:10px; padding:6px 16px 18px;}
-  .toolbar button{
-    flex:1; padding:11px 0; border-radius:10px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--text); display:flex; align-items:center; justify-content:center; gap:6px;
-  }
-
-  nav.bottom{
-    position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card);
-    border-top:1px solid var(--border); z-index:30;
-  }
-  nav.bottom .ntab{
-    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
-    padding:9px 0 8px; font-size:12px; color:#BDBDBD; border:none; background:none;
-  }
-  nav.bottom .ntab.active{color:var(--teal); font-weight:600;}
-  nav.bottom .ntab .ic{font-size:20px;}
-
-  .modal-bg{
-    position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center;
-    justify-content:center; z-index:50;
-  }
-  .modal{background:var(--card); border-radius:14px; padding:20px; width:85%; max-width:340px;}
-  .modal h3{margin:0 0 14px; font-size:17px;}
-  .modal input, .modal select{
-    width:100%; font-size:17px; padding:10px 12px; border:1px solid var(--border);
-    border-radius:8px; margin-bottom:12px; background:#fff; color:var(--text);
-  }
-  .modal .mrow{display:flex; gap:10px;}
-  .modal .mrow button{flex:1; padding:11px 0; border-radius:8px; font-size:16px; border:1px solid var(--border); background:#fff;}
-  .modal .mrow button.primary{background:var(--teal); color:#fff; border-color:var(--teal);}
-
-  .hidden{display:none !important;}
-  .file-input{display:none;}
-  .toast{
-    position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:#333; color:#fff;
-    padding:9px 18px; border-radius:20px; font-size:14px; z-index:60; opacity:0; transition:opacity .25s;
-  }
-  .toast.show{opacity:1;}
-</style>
-</head>
-<body>
-
-<header>
-  <div class="top-row">
-    <div class="year-switch">
-      <button onclick="changeYear(-1)">‹</button>
-      <div>
-        <div class="year-label" id="yearLabel">115年</div>
-        <div class="year-sub" id="yearSub">2026年</div>
-      </div>
-      <button onclick="changeYear(1)">›</button>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button class="icon-btn" id="syncBtn" onclick="manualSync()">☁</button>
-      <button class="icon-btn" onclick="openSettings()">⚙</button>
-    </div>
-  </div>
-</header>
-
-<div class="summary-cards">
-  <div class="scard">
-    <p class="lab" id="monthLabel">本月支出</p>
-    <p class="val" id="monthTotal">NT$ 0</p>
-  </div>
-  <div class="scard">
-    <p class="lab">本年累計</p>
-    <p class="val" id="yearTotal">NT$ 0</p>
-  </div>
-</div>
-
-<div class="view-toggle">
-  <button id="vt-month" class="active" onclick="setView('month')">月份明細</button>
-  <button id="vt-year" onclick="setView('year')">年度總覽</button>
-</div>
-
-<div id="monthTabs" class="month-tabs"></div>
-
-<main>
-  <div id="monthView"></div>
-  <div id="yearView" class="hidden"></div>
-
-  <div class="toolbar">
-    <button onclick="addYear()">＋ 新增年度</button>
-    <button onclick="document.getElementById('fileInput').click()">匯入備份</button>
-    <button onclick="exportBackup()">匯出備份</button>
-  </div>
-  <div class="toolbar">
-    <button onclick="uploadAllToCloud()">⬆ 上傳本機資料到雲端</button>
-  </div>
-</main>
-
-<input type="file" id="fileInput" class="file-input" accept="application/json">
-
-<nav class="bottom">
-  <button class="ntab active"><span class="ic">🧾</span>支出</button>
-  <button class="ntab"><span class="ic">💰</span>收入</button>
-  <button class="ntab"><span class="ic">🛡</span>保單現價</button>
-  <button class="ntab"><span class="ic">📄</span>繳費</button>
-</nav>
-
-<div id="toast" class="toast"></div>
-
-<script>
-/* ===================== 分類設定 ===================== */
-const DEFAULT_GROUPS = [
-  { name:'固定支出', items:['房貸','管理費','人身保險','產物保險-車險','產物保險-火險','所得稅','房屋稅','地價稅','汽車使照稅','汽機車燃料費','驗車費','罰單'] },
-  { name:'經常性支出', items:['伙食費','交通、油錢','停車費','水費','電費','瓦斯費','手機網路費','家用光纖費','汽機車修繕、保養費','居家修繕費','轉帳、信用卡手續費','日常用品'] },
-  { name:'美的支出', items:['服飾、鞋包、飾品','身體保養','美容、美髮','保健食品、用品'] },
-  { name:'興趣、學習', items:['命理、身心靈','運動','繪畫書法手作','社交、娛樂','旅遊費用','娛樂','聚會、交際','送禮、請客'] },
-  { name:'家族支出', items:['孝親費','家庭餐費'] },
-  { name:'額外支出', items:['醫療費','3C、家電','傢俱(機車)','捐款','投資','投資手續、管理費','額外費用','減項調整','紅包預備金'] },
-];
-
-/* ===================== 歷史資料(111-115年) ===================== */
-const SEED_DATA = {"115": {"months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "data": {"房貸": {"1": 53966, "2": 49563, "3": 49563, "4": 49563}, "管理費": {"1": 2388, "2": 2388}, "人身保險": {"2": 26660}, "伙食費": {"1": 16758, "2": 12552, "3": 8590}, "交通、油錢": {"1": 909, "2": 455, "3": 1340}, "水費": {"2": 343}, "電費": {"2": 1132}, "瓦斯費": {"1": 443, "3": 477}, "手機網路費": {"1": 598, "3": 599}, "家用光纖費": {"1": 748, "2": 748, "3": 748}, "居家修繕費": {"1": 190}, "轉帳、信用卡手續費": {"1": 37}, "日常用品": {"1": 3864, "2": 1045, "3": 1514}, "服飾、鞋包、飾品": {"1": 9153, "2": 341, "3": 4424}, "身體保養": {"1": 719}, "美容、美髮": {"1": 4712, "2": 1285, "3": 2773}, "保健食品、用品": {"1": 5678}, "命理、身心靈": {"3": 360}, "運動": {"1": 10019, "2": 3994, "3": 1974}, "娛樂": {"1": 294, "2": 294}, "聚會、交際": {"1": 1300, "3": 1535}, "送禮、請客": {"1": 600}, "孝親費": {"1": 329, "2": 26859}, "家庭餐費": {"2": 7131, "3": 7980}, "醫療費": {"1": 200, "2": 300, "3": 950}, "3C、家電": {"1": 8601, "2": 2990, "3": 3672}, "捐款": {"1": 2600, "2": 600, "3": 600}, "減項調整": {"1": 205}, "紅包預備金": {"2": 2010}}}, "114": {"months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "data": {"房貸": {"1": 53966, "2": 53966, "3": 53966, "4": 53966, "5": 53966, "6": 53966, "7": 53966, "8": 53966, "9": 53966, "10": 53966, "11": 53966, "12": 53966}, "管理費": {"3": 7164, "4": 2388, "5": 2388, "6": 2388, "8": 4776, "10": 4776, "12": 4776}, "人身保險": {"2": 26660, "12": 12771}, "產物保險-車險": {"4": 11398, "10": 1040}, "產物保險-火險": {"7": 2028}, "房屋稅": {"6": 4799}, "地價稅": {"12": 1198}, "汽車使照稅": {"4": 7120}, "汽機車燃料費": {"7": 4800}, "驗車費": {"4": 450}, "伙食費": {"1": 9635, "2": 10117, "3": 13522, "4": 7886, "5": 11502, "6": 9338, "7": 14198, "8": 8088, "9": 11609, "10": 12072, "11": 13420, "12": 10900}, "交通、油錢": {"1": 1270, "2": 400, "5": 1207, "6": 471, "7": 572, "8": 1699, "9": 2119, "10": 1613, "11": 509, "12": 1773}, "停車費": {"11": 100}, "水費": {"2": 375, "4": 385, "6": 406, "8": 427, "10": 427, "12": 385}, "電費": {"2": 912, "4": 1072, "6": 1111, "8": 2113, "10": 2399, "12": 1674}, "瓦斯費": {"1": 408, "3": 489, "5": 489, "7": 396, "9": 350, "11": 316}, "手機網路費": {"1": 598, "3": 598, "5": 598, "7": 598, "9": 598, "11": 599}, "家用光纖費": {"2": 1506, "3": 753, "4": 753, "5": 748, "6": 748, "7": 748, "8": 748, "9": 748, "10": 748, "11": 748, "12": 748}, "汽機車修繕、保養費": {"8": 640}, "居家修繕費": {"4": 217, "9": 1560}, "轉帳、信用卡手續費": {"1": 1, "3": 21, "4": 50, "5": 15, "12": 30}, "日常用品": {"1": 1058, "2": 681, "3": 1040, "4": 1893, "5": 2757, "6": 3500, "7": 2784, "8": 2152, "9": 1856, "10": 2725, "11": 6106, "12": 3340}, "服飾、鞋包、飾品": {"1": 1239, "2": 1444, "3": 914, "4": 4752, "5": 760, "6": 2004, "7": 2070, "8": 1635, "9": 5574, "10": 5934, "11": 4782, "12": 9328}, "身體保養": {"4": 239}, "美容、美髮": {"1": 69, "3": 298, "4": 5009, "8": 5441, "9": 634, "10": 3729, "11": 1312, "12": 1279}, "保健食品、用品": {"1": 87, "3": 1346, "6": 400, "11": 6114, "12": 1790}, "命理、身心靈": {"2": 299}, "運動": {"2": 2098, "3": 290, "4": 3767, "5": 1030, "6": 6247, "7": 202, "8": 4562, "9": 500, "10": 5327, "11": 2709, "12": 8826}, "娛樂": {"7": 294, "8": 294, "9": 294, "11": 294, "12": 294}, "聚會、交際": {"11": 753}, "送禮、請客": {"1": 1318, "8": 886, "10": 2758}, "孝親費": {"1": 17290, "3": 125, "5": 422, "7": 190, "8": 33505, "10": 450, "12": 2580}, "家庭餐費": {"1": 4229, "5": 1120, "7": 231, "8": 3059, "10": 1106, "12": 654}, "醫療費": {"2": 150, "5": 120, "6": 180, "7": 574, "10": 150, "12": 1139}, "3C、家電": {"1": 2177, "2": 5762, "3": 463, "4": 3650, "5": 789, "6": 2899, "7": 2000, "8": 3508, "9": 2789, "10": 2599, "11": 4135, "12": 30586}, "捐款": {"1": 600, "2": 1600, "3": 1600, "4": 600, "5": 600, "6": 600, "7": 600, "8": 600, "9": 600, "10": 600, "11": 600, "12": 600}, "投資": {"7": 5975, "8": 11855, "9": 11940, "10": 11956, "11": 15894, "12": 13858}, "額外費用": {"5": 1000, "6": 101}, "減項調整": {"2": 160, "3": 100, "4": 10, "10": 140, "11": 21, "12": 100}}}, "113": {"months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "data": {"房貸": {"1": 53170, "2": 53170, "4": 106340, "5": 53170, "6": 53170, "7": 53957, "8": 53966, "9": 53966, "10": 53966, "11": 53966, "12": 53966}, "管理費": {"2": 4776, "4": 4776, "6": 4776, "8": 4776, "11": 7164, "12": 2388}, "人身保險": {"2": 25489, "12": 12577}, "產物保險-車險": {"4": 11304}, "產物保險-火險": {"8": 2036}, "房屋稅": {"6": 5851}, "地價稅": {"12": 1198}, "汽車使照稅": {"5": 7120}, "汽機車燃料費": {"7": 4800}, "驗車費": {"4": 450}, "罰單": {"8": 606}, "伙食費": {"1": 8293, "2": 9863, "3": 11193, "4": 9875, "5": 8941, "6": 12954, "7": 10522, "8": 8400, "9": 16152, "10": 9857, "11": 11791, "12": 9168}, "交通、油錢": {"1": 1205, "2": 1345, "5": 1284, "7": 500, "8": 1201, "11": 1166}, "停車費": {"1": 19, "2": 29}, "水費": {"2": 396, "4": 427, "6": 375, "8": 364, "10": 396, "12": 380}, "電費": {"2": 988, "4": 927, "6": 1343, "8": 2140, "10": 2509, "12": 1343}, "瓦斯費": {"1": 466, "3": 627, "5": 570, "7": 431, "9": 316, "11": 339}, "手機網路費": {"1": 598, "3": 600, "5": 598, "7": 598, "9": 600, "11": 598}, "家用光纖費": {"1": 757, "2": 757, "3": 757, "4": 757, "5": 753, "6": 753, "7": 753, "8": 753, "9": 753, "10": 753, "11": 753, "12": 753}, "汽機車修繕、保養費": {"1": 550, "7": 43625}, "居家修繕費": {"3": 1199, "11": 819}, "轉帳、信用卡手續費": {"5": 21, "8": 15, "9": 58, "12": 60}, "日常用品": {"1": 233, "2": 1037, "3": 468, "4": 1511, "5": 1155, "6": 425, "7": 1381, "8": 507, "9": 1950, "10": 1529, "11": 2388, "12": 1137}, "服飾、鞋包、飾品": {"1": 499, "2": 1980, "3": 1963, "4": 1273, "5": 3379, "6": 1770, "8": 2370, "9": 4692, "11": 3211, "12": 4364}, "身體保養": {"4": 550}, "美容、美髮": {"1": 1342, "2": 2710, "3": 340, "4": 1798, "5": 4521, "7": 2381, "8": 11677, "9": 584, "10": 429, "12": 11291}, "保健食品、用品": {"1": 6386, "9": 3245, "10": 220, "11": 1029, "12": 352}, "命理、身心靈": {"1": 1200}, "運動": {"3": 119, "10": 630, "11": 1959}, "聚會、交際": {"1": 292}, "送禮、請客": {"4": 45, "12": 498}, "孝親費": {"1": 1000, "2": 16000, "3": 699, "4": 2950, "8": 1170, "10": 2950}, "家庭餐費": {"1": 1847, "2": 1044, "5": 81, "6": 866, "7": 2075, "8": 1705, "9": 2125}, "醫療費": {"1": 6055, "2": 148, "3": 3669, "4": 150, "5": 184, "7": 210, "8": 318, "11": 2750}, "3C、家電": {"2": 343, "6": 799, "8": 17167, "9": 265}, "傢俱(機車)": {"1": 13649, "2": 21529, "3": 11109, "4": 11829, "12": 2000}, "捐款": {"1": 1900, "2": 600, "3": 600, "4": 1200, "5": 600, "6": 600, "7": 300, "8": 1600, "9": 600, "10": 600, "11": 600, "12": 600}, "減項調整": {"1": 80, "6": 90, "10": 225, "12": 70}}}, "112": {"months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "data": {"房貸": {"1": 48334, "3": 96668, "4": 48792, "5": 51348, "6": 52451, "7": 53170, "8": 53170, "10": 106340, "11": 53170, "12": 53170}, "管理費": {"3": 7164, "4": 2388, "6": 4776, "8": 4776, "10": 4776, "12": 4776}, "人身保險": {"2": 7889, "3": 17600, "12": 12853}, "產物保險-車險": {"3": 11205}, "產物保險-火險": {"6": 2526}, "房屋稅": {"6": 5943}, "地價稅": {"12": 1096}, "汽車使照稅": {"4": 7120}, "汽機車燃料費": {"4": 450, "7": 5250}, "罰單": {"5": 1606, "9": 613}, "伙食費": {"1": 16351, "2": 12379, "3": 4570, "4": 7279, "5": 10844, "6": 5932, "7": 13096, "8": 10707, "9": 11837, "10": 7800, "11": 15036, "12": 7327}, "交通、油錢": {"1": 1298, "2": 100, "3": 1219, "4": 487, "5": 1496, "6": 1110, "7": 1572, "8": 200, "9": 352, "10": 1580, "11": 680, "12": 1643}, "停車費": {"1": 19, "5": 30, "6": 10, "12": 29}, "水費": {"2": 385, "4": 406, "6": 396, "8": 375, "10": 343, "12": 385}, "電費": {"2": 901, "4": 1029, "6": 995, "8": 1807, "10": 2254, "12": 1431}, "瓦斯費": {"1": 547, "3": 570, "5": 627, "7": 443, "9": 362, "11": 373}, "手機網路費": {"1": 499, "2": 500, "3": 499, "4": 499, "5": 499, "7": 508, "9": 598, "11": 598}, "家用光纖費": {"1": 779, "2": 780, "3": 780, "4": 779, "5": 891, "6": 779, "7": 779, "8": 779, "9": 757, "10": 757, "11": 757, "12": 757}, "汽機車修繕、保養費": {"3": 200, "8": 4329, "9": 9000}, "轉帳、信用卡手續費": {"1": 15, "3": 5, "5": 4, "6": 15, "11": 3, "12": 30}, "日常用品": {"1": 1394, "2": 420, "3": 2175, "4": 2114, "5": 992, "6": 2100, "7": 199, "8": 1349, "9": 279, "10": 424, "11": 811, "12": 1072}, "服飾、鞋包、飾品": {"1": 1400, "2": 162, "3": 7105, "4": 4411, "5": 3301, "6": 3085, "7": 2167, "8": 4321, "10": 1041, "11": 5090, "12": 1375}, "美容、美髮": {"1": 398, "2": 2575, "3": 590, "4": 1865, "5": 1201, "6": 1427, "7": 1826, "8": 11243, "9": 1378, "11": 3800, "12": 1310}, "保健食品、用品": {"1": 8302, "3": 145, "4": 6351, "6": 4109, "7": 2226, "10": 1865}, "命理、身心靈": {"1": 3200, "2": 1280, "3": 1000, "5": 2299}, "運動": {"3": 3000, "9": 1540, "10": 1378, "11": 1279, "12": 1000}, "旅遊費用": {"2": 9633}, "聚會、交際": {"11": 100}, "送禮、請客": {"1": 4900, "3": 571, "8": 2086, "11": 3200, "12": 6000}, "孝親費": {"1": 17674, "2": 860, "4": 399, "6": 920, "10": 385, "11": 4972}, "家庭餐費": {"1": 500, "8": 1770, "11": 405, "12": 1158}, "醫療費": {"3": 150, "7": 150, "8": 343, "9": 290, "10": 200, "11": 326}, "3C、家電": {"1": 177, "2": 1995, "3": 2275, "4": 7165, "5": 1529, "6": 1837, "7": 6730, "8": 6729, "9": 4893}, "傢俱(機車)": {"9": 10804, "10": 10799, "11": 19799, "12": 10799}, "捐款": {"1": 1200, "2": 4027, "3": 500, "7": 300, "8": 1600, "9": 900, "10": 600, "11": 300, "12": 600}, "減項調整": {"11": 110}}}, "111": {"months": [7, 8, 9, 10, 11, 12], "data": {"房貸": {"7": 47212, "8": 47212, "9": 47212, "10": 47212, "11": 47822, "12": 47770}, "管理費": {"8": 4776, "10": 4776, "12": 4776}, "人身保險": {"12": 12853}, "產物保險-車險": {"9": 985}, "產物保險-火險": {"8": 2526}, "地價稅": {"12": 1096}, "汽機車燃料費": {"8": 5250}, "罰單": {"7": 66240, "8": 3736, "10": 1627}, "伙食費": {"7": 4280, "8": 11200, "9": 12390, "10": 6163, "11": 13572, "12": 10840}, "交通、油錢": {"7": 100, "8": 3828, "9": 105, "10": 1879, "11": 1569, "12": 1672}, "停車費": {"8": 90, "9": 29}, "水費": {"8": 417, "10": 417, "12": 427}, "電費": {"8": 1604, "10": 1784, "12": 1216}, "瓦斯費": {"7": 535, "9": 363, "11": 385}, "手機網路費": {"7": 499, "8": 499, "9": 499, "10": 499, "11": 499, "12": 499}, "家用光纖費": {"7": 779, "8": 779, "9": 779, "10": 779, "11": 779, "12": 780}, "汽機車修繕、保養費": {"7": 250, "8": 3900, "11": 16547}, "轉帳、信用卡手續費": {"9": 67, "10": 71}, "日常用品": {"7": 1070, "8": 646, "9": 909, "10": 355, "11": 1789, "12": 2268}, "服飾、鞋包、飾品": {"7": 10196, "8": 5838, "9": 3953, "10": 826, "12": 5993}, "身體保養": {"10": 3900, "11": 3600, "12": 1800}, "美容、美髮": {"7": 9065, "8": 9413, "9": 5195, "10": 2388, "12": 3969}, "保健食品、用品": {"7": 992, "8": 215, "9": 5084, "10": 7025, "12": 769}, "命理、身心靈": {"8": 1259, "10": 6214, "12": 1000}, "運動": {"8": 3000, "10": 551, "11": 4900, "12": 198}, "旅遊費用": {"9": 4500}, "聚會、交際": {"7": 300, "8": 450}, "送禮、請客": {"8": 2423, "9": 3824, "10": 1141, "11": 274, "12": 1724}, "孝親費": {"11": 1674, "12": 1674}, "醫療費": {"8": 290, "11": 150}, "3C、家電": {"7": 2094, "8": 2293, "11": 188}, "捐款": {"7": 1200, "8": 1200, "9": 1200, "10": 2200, "11": 1200, "12": 1200}, "投資": {"9": 400}}}};
-
-/* ===================== 狀態與儲存 ===================== */
-const STORAGE_KEY = 'expenseLogData_v1';
-const GROUPS_KEY = 'expenseLogGroups_v1';
-const API_URL_KEY = 'expenseApiUrl_v1';
-const MINGUO_OFFSET = 1911;
-let apiUrl = '';
-let syncing = false;
-
-let groups = JSON.parse(JSON.stringify(DEFAULT_GROUPS));
-let allData = {};   // { "115": { months:[1..12], data:{cat:{m:val}} } }
-let currentYear = 115;
-let currentMonth = 1;
-let currentView = 'month';
-
-function loadState(){
-  apiUrl = localStorage.getItem(API_URL_KEY) || '';
-
-  const savedGroups = localStorage.getItem(GROUPS_KEY);
-  groups = savedGroups ? JSON.parse(savedGroups) : JSON.parse(JSON.stringify(DEFAULT_GROUPS));
-
-  const saved = localStorage.getItem(STORAGE_KEY);
-  allData = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED_DATA));
-
-  const years = Object.keys(allData).map(Number);
-  currentYear = years.length ? Math.max(...years) : 115;
-  const m = allData[currentYear].months;
-  currentMonth = m.length ? m[m.length-1] : 1;
-}
-function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(allData)); }
-function saveGroups(){ localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); }
-
-/* ===================== 工具函式 ===================== */
-function fmt(n){ return 'NT$ ' + Math.round(n||0).toLocaleString('zh-Hant'); }
-function ensureYear(y){
-  if(!allData[y]) allData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{} };
-}
-function yearTotal(y){
-  ensureYear(y);
-  let t=0;
-  for(const cat in allData[y].data){ for(const m in allData[y].data[cat]){ t += Number(allData[y].data[cat][m])||0; } }
-  return t;
-}
-function monthTotal(y,m){
-  ensureYear(y);
-  let t=0;
-  for(const cat in allData[y].data){ t += Number(allData[y].data[cat][m])||0; }
-  return t;
-}
-function groupTotal(y,m,group){
-  let t=0;
-  group.items.forEach(c=>{
-    const v = allData[y].data[c] && allData[y].data[c][m];
-    if(v) t+= Number(v);
-  });
-  return t;
-}
-function toast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 1600);
+  return ContentService.createTextOutput(JSON.stringify({ ok:true }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
-/* ===================== 渲染 ===================== */
-function render(){
-  ensureYear(currentYear);
-  document.getElementById('yearLabel').textContent = currentYear + '年';
-  document.getElementById('yearSub').textContent = (currentYear + MINGUO_OFFSET) + '年';
-  document.getElementById('yearTotal').textContent = fmt(yearTotal(currentYear));
-
-  renderMonthTabs();
-  if(currentView==='month') renderMonthView(); else renderYearView();
-}
-
-function renderMonthTabs(){
-  const wrap = document.getElementById('monthTabs');
-  if(currentView!=='month'){ wrap.classList.add('hidden'); return; }
-  wrap.classList.remove('hidden');
-  wrap.innerHTML = '';
-  const months = allData[currentYear].months;
-  months.forEach(m=>{
-    const b = document.createElement('button');
-    b.className = 'mtab' + (m===currentMonth?' active':'');
-    b.textContent = m + '月';
-    b.onclick = ()=>{ currentMonth = m; render(); };
-    wrap.appendChild(b);
-  });
-}
-
-function renderMonthView(){
-  document.getElementById('monthView').classList.remove('hidden');
-  document.getElementById('yearView').classList.add('hidden');
-  document.getElementById('monthLabel').textContent = currentMonth + '月支出';
-  document.getElementById('monthTotal').textContent = fmt(monthTotal(currentYear, currentMonth));
-
-  const wrap = document.getElementById('monthView');
-  wrap.innerHTML = '';
-  groups.forEach(g=>{
-    const gdiv = document.createElement('div');
-    gdiv.className = 'group';
-
-    const head = document.createElement('div');
-    head.className = 'group-head';
-    head.innerHTML = `<span>${g.name}</span><span class="gsum">${fmt(groupTotal(currentYear,currentMonth,g))}</span>`;
-    gdiv.appendChild(head);
-
-    g.items.forEach(cat=>{
-      const row = document.createElement('div');
-      row.className = 'item-row';
-      const val = (allData[currentYear].data[cat] && allData[currentYear].data[cat][currentMonth]) || '';
-      row.innerHTML = `<span class="iname">${cat}</span><span class="ival ${val===''?'empty':''}">${val===''?'—':Number(val).toLocaleString('zh-Hant')}</span>`;
-      bindRowPress(row, cat, val, g);
-      gdiv.appendChild(row);
-    });
-
-    const addRow = document.createElement('div');
-    addRow.className = 'add-item-row';
-    const addBtn = document.createElement('button');
-    addBtn.textContent = '＋ 新增「' + g.name + '」項目';
-    addBtn.onclick = ()=> addCategory(g);
-    addRow.appendChild(addBtn);
-    gdiv.appendChild(addRow);
-
-    wrap.appendChild(gdiv);
-  });
-}
-
-function renderYearView(){
-  document.getElementById('monthView').classList.add('hidden');
-  document.getElementById('yearView').classList.remove('hidden');
-  document.getElementById('monthLabel').textContent = '本年累計';
-  document.getElementById('monthTotal').textContent = fmt(yearTotal(currentYear));
-
-  const months = allData[currentYear].months;
-  const wrap = document.getElementById('yearView');
-  wrap.innerHTML = '';
-
-  groups.forEach(g=>{
-    const box = document.createElement('div');
-    box.className = 'summary-table';
-    const scroll = document.createElement('div');
-    scroll.className = 'table-scroll';
-    let html = '<table><thead><tr><th>'+g.name+'</th>';
-    months.forEach(m=> html += `<th>${m}月</th>`);
-    html += '<th>合計</th></tr></thead><tbody>';
-    g.items.forEach(cat=>{
-      let rowTotal=0;
-      let cells='';
-      months.forEach(m=>{
-        const v = (allData[currentYear].data[cat] && allData[currentYear].data[cat][m]) || 0;
-        rowTotal += Number(v);
-        cells += `<td>${v? Number(v).toLocaleString('zh-Hant') : '—'}</td>`;
-      });
-      if(rowTotal===0 && !(allData[currentYear].data[cat])) return;
-      html += `<tr><td>${cat}</td>${cells}<td><b>${rowTotal.toLocaleString('zh-Hant')}</b></td></tr>`;
-    });
-    let gMonthTotals = months.map(m=>groupTotal(currentYear,m,g));
-    let gAll = gMonthTotals.reduce((a,b)=>a+b,0);
-    html += '<tr class="totalrow"><td>小計</td>';
-    gMonthTotals.forEach(v=> html += `<td>${v.toLocaleString('zh-Hant')}</td>`);
-    html += `<td>${gAll.toLocaleString('zh-Hant')}</td></tr>`;
-    html += '</tbody></table>';
-    scroll.innerHTML = html;
-    box.appendChild(scroll);
-    wrap.appendChild(box);
-  });
-
-  // 年度合計
-  const box = document.createElement('div');
-  box.className = 'summary-table';
-  let html = '<div class="table-scroll"><table><thead><tr><th>年度合計</th>';
-  months.forEach(m=> html += `<th>${m}月</th>`);
-  html += '<th>全年</th></tr></thead><tbody><tr class="totalrow"><td>支出</td>';
-  let yAll=0;
-  months.forEach(m=>{ const t=monthTotal(currentYear,m); yAll+=t; html+=`<td>${t.toLocaleString('zh-Hant')}</td>`; });
-  html += `<td>${yAll.toLocaleString('zh-Hant')}</td></tr></tbody></table></div>`;
-  box.innerHTML = html;
-  wrap.appendChild(box);
-}
-
-/* ===================== 互動 ===================== */
-function setView(v){
-  currentView = v;
-  document.getElementById('vt-month').classList.toggle('active', v==='month');
-  document.getElementById('vt-year').classList.toggle('active', v==='year');
-  render();
-}
-
-function changeYear(delta){
-  const years = Object.keys(allData).map(Number).sort((a,b)=>a-b);
-  let idx = years.indexOf(currentYear);
-  let newIdx = idx + delta;
-  if(newIdx<0 || newIdx>=years.length){
-    toast(delta>0 ? '已是最新年度，可用「新增年度」' : '沒有更早的資料');
-    return;
-  }
-  currentYear = years[newIdx];
-  const m = allData[currentYear].months;
-  if(!m.includes(currentMonth)) currentMonth = m[m.length-1];
-  render();
-}
-
-function addYear(){
-  const years = Object.keys(allData).map(Number);
-  const next = Math.max(...years) + 1;
-  showModal(`新增 ${next} 年度`, [
-    {label:'將建立空白的'+next+'年資料(1-12月)，確定新增？', type:'info'}
-  ], ()=>{
-    allData[next] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{} };
-    saveData();
-    currentYear = next; currentMonth = 1;
-    render();
-    toast('已新增 '+next+' 年度');
-  }, '新增');
-}
-
-function editValue(cat, currentVal){
-  showModal(cat + ' － ' + currentMonth + '月', [
-    {label:'金額 (NT$)', type:'number', value:currentVal, id:'val'}
-  ], (vals)=>{
-    const num = vals.val === '' ? null : Number(vals.val);
-    if(!allData[currentYear].data[cat]) allData[currentYear].data[cat] = {};
-    if(num===null || isNaN(num) || num===0){
-      delete allData[currentYear].data[cat][currentMonth];
-    } else {
-      allData[currentYear].data[cat][currentMonth] = num;
-    }
-    saveData();
-    syncCell(currentYear, cat, currentMonth, num);
-    render();
-  }, '儲存', true);
-}
-
-function bindRowPress(row, cat, val, group){
-  let timer = null, longPressed = false;
-  const start = ()=>{
-    longPressed = false;
-    timer = setTimeout(()=>{ longPressed = true; deleteCategory(group, cat); }, 600);
-  };
-  const cancel = ()=>{ if(timer){ clearTimeout(timer); timer=null; } };
-  row.addEventListener('pointerdown', start);
-  row.addEventListener('pointerup', cancel);
-  row.addEventListener('pointerleave', cancel);
-  row.addEventListener('pointercancel', cancel);
-  row.addEventListener('click', (e)=>{
-    if(longPressed){ longPressed = false; e.preventDefault(); e.stopPropagation(); return; }
-    editValue(cat, val);
-  });
-}
-
-function deleteCategory(group, cat){
-  showModal('刪除「'+cat+'」', [
-    {label:'將從「'+group.name+'」分類中移除此項目，並清除所有年度的相關金額紀錄。此動作無法復原，確定刪除？', type:'info'}
-  ], ()=>{
-    group.items = group.items.filter(c=>c!==cat);
-    saveGroups();
-    for(const y in allData){
-      if(allData[y].data && allData[y].data[cat]) delete allData[y].data[cat];
-    }
-    saveData();
-    syncGroups();
-    syncDeleteCategory(cat);
-    render();
-    toast('已刪除「'+cat+'」');
-  }, '刪除', true);
-}
-
-function addCategory(group){
-  showModal('新增項目至「'+group.name+'」', [
-    {label:'項目名稱', type:'text', value:'', id:'name'}
-  ], (vals)=>{
-    const name = (vals.name||'').trim();
-    if(!name){ toast('請輸入項目名稱'); return; }
-    if(group.items.includes(name)){ toast('項目已存在'); return; }
-    group.items.push(name);
-    saveGroups();
-    syncGroups();
-    render();
-    toast('已新增「'+name+'」');
-  }, '新增');
-}
-
-/* ===================== 簡易彈窗 ===================== */
-function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
-  const bg = document.createElement('div');
-  bg.className = 'modal-bg';
-  const m = document.createElement('div');
-  m.className = 'modal';
-  let html = '<h3>'+title+'</h3>';
-  fields.forEach(f=>{
-    if(f.type==='info'){
-      html += '<p style="font-size:15px; color:var(--sub); margin:0 0 14px;">'+f.label+'</p>';
-    } else {
-      html += '<label style="font-size:13px; color:var(--sub);">'+f.label+'</label>';
-      html += `<input type="${f.type}" id="modal_${f.id}" value="${f.value!==undefined?f.value:''}" ${f.type==='number'?'inputmode="decimal"':''}>`;
-    }
-  });
-  html += '<div class="mrow">';
-  html += "<button onclick=\"this.closest('.modal-bg').remove()\">取消</button>";
-  html += '<button class="primary" id="modalConfirm">'+(confirmLabel||'確定')+'</button>';
-  html += '</div>';
-  m.innerHTML = html;
-  bg.appendChild(m);
-  document.body.appendChild(bg);
-
-  const firstInput = m.querySelector('input');
-  if(firstInput) setTimeout(()=>{ firstInput.focus(); firstInput.select(); }, 50);
-
-  m.querySelector('#modalConfirm').onclick = ()=>{
-    const vals = {};
-    fields.forEach(f=>{ if(f.id) vals[f.id] = m.querySelector('#modal_'+f.id).value; });
-    bg.remove();
-    onConfirm(vals);
-  };
-}
-
-/* ===================== 雲端同步 (Google Apps Script) ===================== */
-function setSyncIcon(state){
-  // state: 'idle' | 'busy' | 'error' | 'off'
-  const btn = document.getElementById('syncBtn');
-  if(!btn) return;
-  if(state==='off'){ btn.textContent='☁'; btn.style.opacity=0.5; }
-  else if(state==='busy'){ btn.textContent='⟳'; btn.style.opacity=1; }
-  else if(state==='error'){ btn.textContent='⚠'; btn.style.opacity=1; }
-  else { btn.textContent='✓'; btn.style.opacity=1; setTimeout(()=>{ if(btn.textContent==='✓') btn.textContent='☁'; },1500); }
-}
-
-function flatRowsFromData(){
-  const rows = [];
-  for(const y in allData){
-    for(const cat in allData[y].data){
-      for(const m in allData[y].data[cat]){
-        const v = allData[y].data[cat][m];
-        if(v) rows.push({year:Number(y), category:cat, month:Number(m), amount:Number(v)});
-      }
+function upsertCell(year, category, month, amount, note){
+  const sh = getDataSheet();
+  const rows = sh.getDataRange().getValues();
+  let foundRow = -1;
+  for(let i=1;i<rows.length;i++){
+    if(Number(rows[i][0])===Number(year) && rows[i][1]===category && Number(rows[i][2])===Number(month)){
+      foundRow = i+1; break;
     }
   }
-  return rows;
-}
-
-function rebuildDataFromRows(rows){
-  const newData = {};
-  rows.forEach(r=>{
-    const y = String(r.year);
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{} };
-    if(!newData[y].data[r.category]) newData[y].data[r.category] = {};
-    newData[y].data[r.category][String(r.month)] = r.amount;
-  });
-  // 保留原本已知的年度範圍(即使雲端尚無資料)
-  for(const y in allData){
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{} };
-  }
-  return newData;
-}
-
-async function cloudGet(){
-  if(!apiUrl) return null;
-  const res = await fetch(apiUrl, { method:'GET' });
-  if(!res.ok) throw new Error('讀取失敗 ('+res.status+')');
-  return await res.json();
-}
-
-async function cloudPost(payload){
-  if(!apiUrl) return;
-  await fetch(apiUrl, {
-    method:'POST',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  });
-}
-
-async function syncCell(year, category, month, amount){
-  if(!apiUrl) return;
-  setSyncIcon('busy');
-  try{
-    await cloudPost({ action:'set', year, category, month, amount });
-    setSyncIcon('idle');
-  }catch(err){ setSyncIcon('error'); toast('雲端同步失敗，稍後會自動再試'); }
-}
-
-async function syncGroups(){
-  if(!apiUrl) return;
-  setSyncIcon('busy');
-  try{
-    await cloudPost({ action:'setGroups', groups });
-    setSyncIcon('idle');
-  }catch(err){ setSyncIcon('error'); }
-}
-
-async function syncDeleteCategory(category){
-  if(!apiUrl) return;
-  setSyncIcon('busy');
-  try{
-    await cloudPost({ action:'deleteCategory', category });
-    setSyncIcon('idle');
-  }catch(err){ setSyncIcon('error'); toast('雲端刪除失敗，稍後會自動再試'); }
-}
-
-async function manualSync(){
-  if(!apiUrl){ openSettings(); return; }
-  if(syncing) return;
-  syncing = true;
-  setSyncIcon('busy');
-  try{
-    const result = await cloudGet();
-    if(result){
-      if(result.data && result.data.length){
-        allData = rebuildDataFromRows(result.data);
-        saveData();
-      }
-      if(result.groups){
-        groups = result.groups;
-        saveGroups();
-      }
-      render();
-      toast('已從雲端同步最新資料');
+  const isEmptyAmount = (amount===null || amount===undefined || amount==='' || Number(amount)===0);
+  const noteVal = note || '';
+  if(foundRow>0){
+    if(isEmptyAmount && !noteVal) sh.deleteRow(foundRow);
+    else{
+      sh.getRange(foundRow,4).setValue(isEmptyAmount?0:Number(amount));
+      sh.getRange(foundRow,5).setValue(noteVal);
     }
-    setSyncIcon('idle');
-  }catch(err){
-    setSyncIcon('error');
-    toast('連線失敗：'+err.message);
-  }
-  syncing = false;
-}
-
-async function uploadAllToCloud(){
-  if(!apiUrl){ toast('請先在設定中貼上Apps Script網址'); return; }
-  setSyncIcon('busy');
-  try{
-    await cloudPost({ action:'bulkReplace', rows: flatRowsFromData(), groups });
-    setSyncIcon('idle');
-    toast('已將本機資料整批上傳到雲端');
-  }catch(err){
-    setSyncIcon('error');
-    toast('上傳失敗：'+err.message);
+  } else if(!isEmptyAmount || noteVal){
+    sh.appendRow([Number(year), category, Number(month), isEmptyAmount?0:Number(amount), noteVal]);
   }
 }
 
-
-function openSettings(){
-  showModal('雲端同步設定', [
-    {label:'貼上Google Apps Script的網頁應用程式網址(.../exec)，每次新增/修改會自動同步。', type:'info'},
-    {label:'Apps Script網址', type:'text', value:apiUrl, id:'url'},
-    {label:'設定完成後，若這是第一次連接，請按下方「上傳本機資料到雲端」把目前資料寫入Sheet；之後其他裝置可用右上角☁圖示「從雲端同步」。', type:'info'}
-  ], (vals)=>{
-    apiUrl = (vals.url||'').trim();
-    localStorage.setItem(API_URL_KEY, apiUrl);
-    if(apiUrl){ toast('已儲存雲端設定'); setSyncIcon('idle'); }
-    else { toast('已關閉雲端同步'); setSyncIcon('off'); }
-  }, '儲存');
+function deleteCategoryRows(category){
+  const sh = getDataSheet();
+  const rows = sh.getDataRange().getValues();
+  for(let i=rows.length-1;i>=1;i--){
+    if(rows[i][1]===category) sh.deleteRow(i+1);
+  }
 }
-
-function exportBackup(){
-  const payload = { exportedAt: new Date().toISOString(), groups, data: allData };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const now = new Date();
-  const stamp = now.getFullYear()+''+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
-  a.href = url;
-  a.download = `expense-backup-${stamp}.json`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-  toast('已匯出備份檔');
-}
-
-document.getElementById('fileInput').addEventListener('change', function(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev){
-    try{
-      const payload = JSON.parse(ev.target.result);
-      if(payload.data){
-        allData = payload.data;
-        if(payload.groups) groups = payload.groups;
-        saveData(); saveGroups();
-        const years = Object.keys(allData).map(Number);
-        currentYear = Math.max(...years);
-        currentMonth = allData[currentYear].months[allData[currentYear].months.length-1];
-        render();
-        toast('已匯入備份');
-      } else {
-        toast('檔案格式不正確');
-      }
-    }catch(err){
-      toast('讀取失敗：'+err.message);
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
-
-/* ===================== 初始化 ===================== */
-loadState();
-render();
-if(apiUrl) manualSync(); else setSyncIcon('off');
-</script>
-</body>
-</html>
