@@ -20,7 +20,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   body{
     margin:0; font-family:-apple-system,"Helvetica Neue","PingFang TC","Microsoft JhengHei",sans-serif;
-    background:var(--bg); color:var(--text); padding-bottom:74px; font-size:17px;
+    background:var(--bg); color:var(--text); padding-bottom:74px; font-size:19px;
   }
   header{
     background:var(--header); color:#E8F5E9; padding:16px 18px 14px;
@@ -30,37 +30,66 @@
   header .year-switch{display:flex; align-items:center; gap:10px;}
   header .year-switch button{
     background:rgba(255,255,255,0.15); border:none; color:#fff; width:32px; height:32px;
-    border-radius:8px; font-size:18px; line-height:1;
+    border-radius:8px; font-size:20px; line-height:1;
   }
-  header .year-label{font-size:20px; font-weight:600;}
-  header .year-sub{font-size:13px; opacity:0.85; margin-top:2px;}
-  .icon-btn{background:rgba(255,255,255,0.15); border:none; color:#fff; width:34px; height:34px; border-radius:8px; font-size:16px;}
+  header .year-label{font-size:22px; font-weight:600;}
+  header .year-sub{font-size:15px; opacity:0.85; margin-top:2px;}
+  .icon-btn{background:rgba(255,255,255,0.15); border:none; color:#fff; width:34px; height:34px; border-radius:8px; font-size:18px;}
 
   .summary-cards{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px;}
   .scard{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
-  .scard .lab{font-size:13px; color:var(--sub); margin:0 0 4px;}
-  .scard .val{font-size:21px; font-weight:600; margin:0;}
+  .scard .lab{font-size:15px; color:var(--sub); margin:0 0 4px;}
+  .scard .val{font-size:23px; font-weight:600; margin:0;}
 
   .month-tabs{display:flex; gap:6px; overflow-x:auto; padding:0 16px 10px; -webkit-overflow-scrolling:touch;}
   .month-tabs::-webkit-scrollbar{display:none;}
   .mtab{
     flex:0 0 auto; padding:8px 14px; border-radius:20px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--text);
+    background:var(--card); font-size:17px; color:var(--text);
   }
   .mtab.active{background:var(--teal); color:#fff; border-color:var(--teal);}
 
   .view-toggle{display:flex; gap:8px; padding:0 16px 10px;}
   .view-toggle button{
     flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--sub);
+    background:var(--card); font-size:17px; color:var(--sub);
   }
   .view-toggle button.active{background:var(--header); color:#fff; border-color:var(--header); font-weight:600;}
+
+  .search-box{padding:0 16px 10px; display:flex; gap:8px;}
+  .search-box input{
+    flex:1; min-width:0; font-size:18px; padding:10px 14px; border:1px solid var(--border);
+    border-radius:10px; background:#fff; color:var(--text);
+  }
+  .search-box .back-btn{
+    flex:0 0 auto; padding:10px 16px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); font-size:17px;
+  }
+  .search-result{
+    display:flex; justify-content:space-between; align-items:center; padding:12px 16px;
+    border-top:1px solid var(--border); gap:10px;
+  }
+  .search-result .sr-left{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .search-result .sr-cat{font-size:18px;}
+  .search-result .sr-meta{font-size:14px; color:var(--sub); margin-top:2px;}
+  .search-result .sr-note{font-size:14px; color:var(--sub); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .search-result .sr-val{font-size:18px; min-width:90px; text-align:right;}
+  .search-empty{padding:30px 16px; text-align:center; color:var(--sub); font-size:17px;}
+
+  .year-note-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px;}
+  .year-note-card h4{margin:0 0 10px; font-size:17px; font-weight:600; color:var(--header);}
+  .year-note-card textarea{
+    width:100%; min-height:140px; font-size:17px; padding:12px 14px; border:1px solid var(--border);
+    border-radius:10px; background:#fff; color:var(--text); resize:vertical; font-family:inherit;
+    line-height:1.6;
+  }
+  .year-note-card .save-hint{font-size:13px; color:var(--sub); margin-top:8px; text-align:right; min-height:18px;}
 
   main{padding:0 16px;}
   .group{background:var(--card); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; overflow:hidden;}
   .group-head{
     display:flex; justify-content:space-between; align-items:center; padding:13px 16px;
-    background:#F1F8E9; font-weight:600; font-size:16px;
+    background:#F1F8E9; font-weight:600; font-size:18px;
   }
   .group-head .gsum{font-weight:600; color:var(--header);}
   .item-row{
@@ -68,27 +97,27 @@
     border-top:1px solid var(--border); gap:10px;
   }
   .item-row .iname-wrap{flex:1; min-width:0; display:flex; flex-direction:column;}
-  .item-row .iname{font-size:17px;}
-  .item-row .inote{font-size:12px; color:var(--sub); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .item-row .ival{font-size:17px; color:var(--text); min-width:90px; text-align:right;}
+  .item-row .iname{font-size:19px;}
+  .item-row .inote{font-size:14px; color:var(--sub); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .item-row .ival{font-size:19px; color:var(--text); min-width:90px; text-align:right;}
   .item-row .ival.empty{color:#BDBDBD;}
   .modal textarea{
-    width:100%; font-size:17px; padding:10px 12px; border:1px solid var(--border);
+    width:100%; font-size:19px; padding:10px 12px; border:1px solid var(--border);
     border-radius:8px; margin-bottom:12px; background:#fff; color:var(--text);
     resize:vertical; min-height:60px; font-family:inherit;
   }
   .item-row input{
-    width:110px; text-align:right; font-size:17px; border:1px solid var(--teal);
+    width:110px; text-align:right; font-size:19px; border:1px solid var(--teal);
     border-radius:8px; padding:7px 10px; background:#fff; color:var(--text);
   }
   .add-item-row{padding:12px 16px; border-top:1px solid var(--border);}
   .add-item-row button{
     width:100%; padding:9px 0; border-radius:8px; border:1px dashed var(--border);
-    background:transparent; color:var(--sub); font-size:15px;
+    background:transparent; color:var(--sub); font-size:17px;
   }
 
   .summary-table{background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:16px;}
-  .summary-table table{width:100%; border-collapse:collapse; font-size:15px;}
+  .summary-table table{width:100%; border-collapse:collapse; font-size:17px;}
   .summary-table th,.summary-table td{padding:10px 8px; text-align:right; border-top:1px solid var(--border); white-space:nowrap;}
   .summary-table th:first-child,.summary-table td:first-child{text-align:left; position:sticky; left:0; background:var(--card);}
   .summary-table thead th{background:#F1F8E9; border-top:none; font-weight:600;}
@@ -98,7 +127,7 @@
   .toolbar{display:flex; gap:10px; padding:6px 16px 18px;}
   .toolbar button{
     flex:1; padding:11px 0; border-radius:10px; border:1px solid var(--border);
-    background:var(--card); font-size:15px; color:var(--text); display:flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--card); font-size:17px; color:var(--text); display:flex; align-items:center; justify-content:center; gap:6px;
   }
 
   nav.bottom{
@@ -107,30 +136,30 @@
   }
   nav.bottom .ntab{
     flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
-    padding:9px 0 8px; font-size:12px; color:#BDBDBD; border:none; background:none;
+    padding:9px 0 8px; font-size:14px; color:#BDBDBD; border:none; background:none;
   }
   nav.bottom .ntab.active{color:var(--teal); font-weight:600;}
-  nav.bottom .ntab .ic{font-size:20px;}
+  nav.bottom .ntab .ic{font-size:22px;}
 
   .modal-bg{
     position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center;
     justify-content:center; z-index:50;
   }
   .modal{background:var(--card); border-radius:14px; padding:20px; width:85%; max-width:340px;}
-  .modal h3{margin:0 0 14px; font-size:17px;}
+  .modal h3{margin:0 0 14px; font-size:19px;}
   .modal input, .modal select{
-    width:100%; font-size:17px; padding:10px 12px; border:1px solid var(--border);
+    width:100%; font-size:19px; padding:10px 12px; border:1px solid var(--border);
     border-radius:8px; margin-bottom:12px; background:#fff; color:var(--text);
   }
   .modal .mrow{display:flex; gap:10px;}
-  .modal .mrow button{flex:1; padding:11px 0; border-radius:8px; font-size:16px; border:1px solid var(--border); background:#fff;}
+  .modal .mrow button{flex:1; padding:11px 0; border-radius:8px; font-size:18px; border:1px solid var(--border); background:#fff;}
   .modal .mrow button.primary{background:var(--teal); color:#fff; border-color:var(--teal);}
 
   .hidden{display:none !important;}
   .file-input{display:none;}
   .toast{
     position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:#333; color:#fff;
-    padding:9px 18px; border-radius:20px; font-size:14px; z-index:60; opacity:0; transition:opacity .25s;
+    padding:9px 18px; border-radius:20px; font-size:16px; z-index:60; opacity:0; transition:opacity .25s;
   }
   .toast.show{opacity:1;}
 </style>
@@ -148,6 +177,7 @@
       <button onclick="changeYear(1)">›</button>
     </div>
     <div style="display:flex; gap:8px;">
+      <button class="icon-btn" onclick="openSearch()">🔍</button>
       <button class="icon-btn" id="syncBtn" onclick="manualSync()">☁</button>
       <button class="icon-btn" onclick="openSettings()">⚙</button>
     </div>
@@ -175,6 +205,7 @@
 <main>
   <div id="monthView"></div>
   <div id="yearView" class="hidden"></div>
+  <div id="searchView" class="hidden"></div>
 
   <div class="toolbar">
     <button onclick="addYear()">＋ 新增年度</button>
@@ -248,8 +279,9 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function ensureYear(y){
-  if(!allData[y]) allData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{} };
+  if(!allData[y]) allData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
   if(!allData[y].notes) allData[y].notes = {};
+  if(allData[y].yearNote===undefined) allData[y].yearNote = '';
 }
 function getNote(y, cat, m){
   return (allData[y].notes && allData[y].notes[cat] && allData[y].notes[cat][m]) || '';
@@ -293,8 +325,12 @@ function render(){
   document.getElementById('yearSub').textContent = (currentYear + MINGUO_OFFSET) + '年';
   document.getElementById('yearTotal').textContent = fmt(yearTotal(currentYear));
 
+  document.querySelector('.view-toggle').classList.toggle('hidden', currentView==='search');
+
   renderMonthTabs();
-  if(currentView==='month') renderMonthView(); else renderYearView();
+  if(currentView==='month') renderMonthView();
+  else if(currentView==='year') renderYearView();
+  else renderSearchView();
 }
 
 function renderMonthTabs(){
@@ -315,6 +351,7 @@ function renderMonthTabs(){
 function renderMonthView(){
   document.getElementById('monthView').classList.remove('hidden');
   document.getElementById('yearView').classList.add('hidden');
+  document.getElementById('searchView').classList.add('hidden');
   document.getElementById('monthLabel').textContent = currentMonth + '月支出';
   document.getElementById('monthTotal').textContent = fmt(monthTotal(currentYear, currentMonth));
 
@@ -354,6 +391,7 @@ function renderMonthView(){
 function renderYearView(){
   document.getElementById('monthView').classList.add('hidden');
   document.getElementById('yearView').classList.remove('hidden');
+  document.getElementById('searchView').classList.add('hidden');
   document.getElementById('monthLabel').textContent = '本年累計';
   document.getElementById('monthTotal').textContent = fmt(yearTotal(currentYear));
 
@@ -368,7 +406,7 @@ function renderYearView(){
     scroll.className = 'table-scroll';
     let html = '<table><thead><tr><th>'+g.name+'</th>';
     months.forEach(m=> html += `<th>${m}月</th>`);
-    html += '<th>合計</th></tr></thead><tbody>';
+    html += '<th>每月平均</th><th>合計</th></tr></thead><tbody>';
     g.items.forEach(cat=>{
       let rowTotal=0;
       let cells='';
@@ -378,13 +416,15 @@ function renderYearView(){
         cells += `<td>${v? Number(v).toLocaleString('zh-Hant') : '—'}</td>`;
       });
       if(rowTotal===0 && !(allData[currentYear].data[cat])) return;
-      html += `<tr><td>${cat}</td>${cells}<td><b>${rowTotal.toLocaleString('zh-Hant')}</b></td></tr>`;
+      const avg = rowTotal / months.length;
+      html += `<tr><td>${cat}</td>${cells}<td>${avg.toLocaleString('zh-Hant',{maximumFractionDigits:0})}</td><td><b>${rowTotal.toLocaleString('zh-Hant')}</b></td></tr>`;
     });
     let gMonthTotals = months.map(m=>groupTotal(currentYear,m,g));
     let gAll = gMonthTotals.reduce((a,b)=>a+b,0);
+    let gAvg = gAll / months.length;
     html += '<tr class="totalrow"><td>小計</td>';
     gMonthTotals.forEach(v=> html += `<td>${v.toLocaleString('zh-Hant')}</td>`);
-    html += `<td>${gAll.toLocaleString('zh-Hant')}</td></tr>`;
+    html += `<td>${gAvg.toLocaleString('zh-Hant',{maximumFractionDigits:0})}</td><td>${gAll.toLocaleString('zh-Hant')}</td></tr>`;
     html += '</tbody></table>';
     scroll.innerHTML = html;
     box.appendChild(scroll);
@@ -396,12 +436,38 @@ function renderYearView(){
   box.className = 'summary-table';
   let html = '<div class="table-scroll"><table><thead><tr><th>年度合計</th>';
   months.forEach(m=> html += `<th>${m}月</th>`);
-  html += '<th>全年</th></tr></thead><tbody><tr class="totalrow"><td>支出</td>';
+  html += '<th>每月平均</th><th>全年</th></tr></thead><tbody><tr class="totalrow"><td>支出</td>';
   let yAll=0;
   months.forEach(m=>{ const t=monthTotal(currentYear,m); yAll+=t; html+=`<td>${t.toLocaleString('zh-Hant')}</td>`; });
-  html += `<td>${yAll.toLocaleString('zh-Hant')}</td></tr></tbody></table></div>`;
+  const yAvg = yAll / months.length;
+  html += `<td>${yAvg.toLocaleString('zh-Hant',{maximumFractionDigits:0})}</td><td>${yAll.toLocaleString('zh-Hant')}</td></tr></tbody></table></div>`;
   box.innerHTML = html;
   wrap.appendChild(box);
+
+  // 年度備註
+  const noteBox = document.createElement('div');
+  noteBox.className = 'year-note-card';
+  noteBox.innerHTML = `
+    <h4>${currentYear}年度備註</h4>
+    <textarea id="yearNoteInput" placeholder="記錄這一年的大事、特殊支出說明...">${escapeHtml(allData[currentYear].yearNote||'')}</textarea>
+    <div class="save-hint" id="yearNoteHint">&nbsp;</div>
+  `;
+  wrap.appendChild(noteBox);
+  const taEl = document.getElementById('yearNoteInput');
+  let noteTimer = null;
+  taEl.addEventListener('input', ()=>{
+    const hint = document.getElementById('yearNoteHint');
+    hint.textContent = '編輯中...';
+    if(noteTimer) clearTimeout(noteTimer);
+    noteTimer = setTimeout(()=>saveYearNote(currentYear, taEl.value, hint), 800);
+  });
+}
+
+function saveYearNote(year, text, hint){
+  allData[year].yearNote = text;
+  saveData();
+  syncYearNote(year, text);
+  if(hint) hint.textContent = '已儲存';
 }
 
 /* ===================== 互動 ===================== */
@@ -410,6 +476,85 @@ function setView(v){
   document.getElementById('vt-month').classList.toggle('active', v==='month');
   document.getElementById('vt-year').classList.toggle('active', v==='year');
   render();
+}
+
+function openSearch(){
+  if(currentView==='search') return;
+  setView('search');
+  setTimeout(()=>{ const inp = document.getElementById('searchInput'); if(inp) inp.focus(); }, 50);
+}
+
+function renderSearchView(){
+  document.getElementById('monthView').classList.add('hidden');
+  document.getElementById('yearView').classList.add('hidden');
+  const wrap = document.getElementById('searchView');
+  wrap.classList.remove('hidden');
+  document.getElementById('monthLabel').textContent = '跨年度搜尋';
+  document.getElementById('monthTotal').textContent = '—';
+
+  wrap.innerHTML = `
+    <div class="search-box">
+      <button class="back-btn" onclick="setView('month')">‹ 返回</button>
+      <input id="searchInput" type="text" placeholder="輸入分類名稱或備註關鍵字...">
+    </div>
+    <div id="searchResults"></div>
+  `;
+  document.getElementById('searchInput').addEventListener('input', renderSearchResults);
+  renderSearchResults();
+}
+
+function renderSearchResults(){
+  const wrap = document.getElementById('searchResults');
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  if(!q){
+    wrap.innerHTML = '<div class="search-empty">輸入關鍵字以搜尋所有年度的支出項目與備註</div>';
+    return;
+  }
+
+  const results = [];
+  const years = Object.keys(allData).map(Number).sort((a,b)=>b-a);
+  years.forEach(y=>{
+    const months = (allData[y].months||[]).slice().sort((a,b)=>b-a);
+    months.forEach(m=>{
+      groups.forEach(g=>{
+        g.items.forEach(cat=>{
+          const val = (allData[y].data[cat] && allData[y].data[cat][m]);
+          const note = getNote(y, cat, m);
+          if(!val && !note) return;
+          const hit = cat.toLowerCase().includes(q) || (note && note.toLowerCase().includes(q));
+          if(!hit) return;
+          results.push({y, m, cat, val: val||0, note});
+        });
+      });
+    });
+  });
+
+  if(!results.length){
+    wrap.innerHTML = '<div class="search-empty">沒有符合「'+escapeHtml(q)+'」的紀錄</div>';
+    return;
+  }
+
+  let html = '<div class="group">';
+  results.forEach(r=>{
+    html += `<div class="search-result" data-y="${r.y}" data-m="${r.m}">
+      <div class="sr-left">
+        <span class="sr-cat">${escapeHtml(r.cat)}</span>
+        <span class="sr-meta">${r.y}年 ${r.m}月</span>
+        ${r.note?`<span class="sr-note">${escapeHtml(r.note)}</span>`:''}
+      </div>
+      <span class="sr-val">${r.val? Number(r.val).toLocaleString('zh-Hant') : '—'}</span>
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.search-result').forEach(el=>{
+    el.onclick = ()=>{
+      currentYear = Number(el.dataset.y);
+      currentMonth = Number(el.dataset.m);
+      setView('month');
+    };
+  });
 }
 
 function changeYear(delta){
@@ -519,12 +664,12 @@ function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
   let html = '<h3>'+title+'</h3>';
   fields.forEach(f=>{
     if(f.type==='info'){
-      html += '<p style="font-size:15px; color:var(--sub); margin:0 0 14px;">'+f.label+'</p>';
+      html += '<p style="font-size:17px; color:var(--sub); margin:0 0 14px;">'+f.label+'</p>';
     } else if(f.type==='textarea'){
-      html += '<label style="font-size:13px; color:var(--sub);">'+f.label+'</label>';
+      html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
       html += `<textarea id="modal_${f.id}" placeholder="${f.placeholder?escapeHtml(f.placeholder):''}">${f.value!==undefined?escapeHtml(f.value):''}</textarea>`;
     } else {
-      html += '<label style="font-size:13px; color:var(--sub);">'+f.label+'</label>';
+      html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
       html += `<input type="${f.type}" id="modal_${f.id}" value="${f.value!==undefined?escapeHtml(f.value):''}" ${f.type==='number'?'inputmode="decimal"':''}>`;
     }
   });
@@ -577,11 +722,11 @@ function flatRowsFromData(){
   return rows;
 }
 
-function rebuildDataFromRows(rows){
+function rebuildDataFromRows(rows, yearNotes){
   const newData = {};
   rows.forEach(r=>{
     const y = String(r.year);
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{} };
+    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
     if(r.amount){
       if(!newData[y].data[r.category]) newData[y].data[r.category] = {};
       newData[y].data[r.category][String(r.month)] = r.amount;
@@ -593,7 +738,20 @@ function rebuildDataFromRows(rows){
   });
   // 保留原本已知的年度範圍(即使雲端尚無資料)
   for(const y in allData){
-    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{} };
+    if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+  }
+  // 套用年度備註
+  if(yearNotes){
+    for(const y in yearNotes){
+      if(!newData[y]) newData[y] = { months:[1,2,3,4,5,6,7,8,9,10,11,12], data:{}, notes:{}, yearNote:'' };
+      newData[y].yearNote = yearNotes[y] || '';
+    }
+  }
+  // 保留原本本機已輸入但雲端尚無的年度備註
+  for(const y in allData){
+    if(newData[y] && !newData[y].yearNote && allData[y].yearNote){
+      newData[y].yearNote = allData[y].yearNote;
+    }
   }
   return newData;
 }
@@ -641,6 +799,15 @@ async function syncDeleteCategory(category){
   }catch(err){ setSyncIcon('error'); toast('雲端刪除失敗，稍後會自動再試'); }
 }
 
+async function syncYearNote(year, note){
+  if(!apiUrl) return;
+  setSyncIcon('busy');
+  try{
+    await cloudPost({ action:'setYearNote', year, note });
+    setSyncIcon('idle');
+  }catch(err){ setSyncIcon('error'); toast('年度備註雲端同步失敗，稍後會自動再試'); }
+}
+
 async function manualSync(){
   if(!apiUrl){ openSettings(); return; }
   if(syncing) return;
@@ -650,7 +817,13 @@ async function manualSync(){
     const result = await cloudGet();
     if(result){
       if(result.data && result.data.length){
-        allData = rebuildDataFromRows(result.data);
+        allData = rebuildDataFromRows(result.data, result.yearNotes);
+        saveData();
+      } else if(result.yearNotes){
+        for(const y in result.yearNotes){
+          ensureYear(Number(y));
+          allData[y].yearNote = result.yearNotes[y] || '';
+        }
         saveData();
       }
       if(result.groups){
@@ -672,7 +845,9 @@ async function uploadAllToCloud(){
   if(!apiUrl){ toast('請先在設定中貼上Apps Script網址'); return; }
   setSyncIcon('busy');
   try{
-    await cloudPost({ action:'bulkReplace', rows: flatRowsFromData(), groups });
+    const yearNotes = {};
+    for(const y in allData){ if(allData[y].yearNote) yearNotes[y] = allData[y].yearNote; }
+    await cloudPost({ action:'bulkReplace', rows: flatRowsFromData(), groups, yearNotes });
     setSyncIcon('idle');
     toast('已將本機資料整批上傳到雲端');
   }catch(err){
