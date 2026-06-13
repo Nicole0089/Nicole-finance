@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>保單繳費</title>
+<style>
+  :root{
+    --header:#1B5E20;
+    --teal:#00695C;
+    --orange:#E65100;
+    --bg:#F5F5F0;
+    --card:#FFFFFF;
+    --border:#E0E0DA;
+    --text:#212121;
+    --sub:#757575;
+    --green:#2E7D32;
+    --red:#C62828;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  body{
+    margin:0; font-family:-apple-system,"Helvetica Neue","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg); color:var(--text); padding-bottom:74px; font-size:19px;
+  }
+  header{
+    background:var(--header); color:#E8F5E9; padding:16px 18px 14px;
+    position:sticky; top:0; z-index:20;
+  }
+  header .top-row{display:flex; align-items:center; justify-content:space-between;}
+  header .title-area .h-label{font-size:22px; font-weight:600;}
+  header .title-area .h-sub{font-size:15px; opacity:0.85; margin-top:2px;}
+
+  .summary-cards{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px;}
+  .summary-cards .scard:first-child{grid-column:1 / -1;}
+  .scard{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
+  .scard .lab{font-size:15px; color:var(--sub); margin:0 0 4px;}
+  .scard .val{font-size:23px; font-weight:600; margin:0; white-space:nowrap;}
+  .summary-cards .scard:not(:first-child) .val{font-size:19px;}
+
+  .policy-tabs{display:flex; gap:6px; padding:0 16px 10px;}
+  .policy-tabs.main-tabs .ptab{flex:1;}
+  .policy-tabs:not(.main-tabs){overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .policy-tabs:not(.main-tabs)::-webkit-scrollbar{display:none;}
+  .ptab{
+    flex:0 0 auto; padding:10px 14px; border-radius:20px; border:1px solid var(--border);
+    background:var(--card); font-size:17px; color:var(--text); text-align:center;
+  }
+  .ptab.active{background:var(--teal); color:#fff; border-color:var(--teal);}
+  #ageTabs .ptab{font-size:15px; padding:6px 8px; color:var(--sub); flex:1; text-align:center;}
+  #ageTabs .ptab.active{background:var(--orange); border-color:var(--orange); color:#fff;}
+
+  main{padding:0 16px;}
+
+  /* ---- 投保項目清單 ---- */
+  .person-group{margin-bottom:16px;}
+  .person-group h3{font-size:18px; color:var(--header); margin:0 0 8px; padding-left:2px;}
+  .policy-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
+  .policy-card .pc-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;}
+  .policy-card .pc-company{font-size:17px; font-weight:600;}
+  .policy-card .pc-prem{font-size:19px; font-weight:600; color:var(--teal);}
+  .policy-card .pc-meta{font-size:14px; color:var(--sub); margin-bottom:8px;}
+  .policy-card table{width:100%; border-collapse:collapse; font-size:15px;}
+  .policy-card th,.policy-card td{padding:6px 4px; text-align:left; border-top:1px solid var(--border);}
+  .policy-card th:last-child,.policy-card td:last-child{text-align:right; white-space:nowrap;}
+  .policy-card thead th{font-weight:600; color:var(--sub); border-top:none; font-size:13px;}
+  .policy-card .pc-note{font-size:13px; color:var(--orange); margin-top:8px;}
+  .policy-card.paid-off{color:var(--sub);}
+  .policy-card.paid-off .pc-prem{color:var(--sub);}
+  .policy-card.paid-off thead th{color:#BDBDBD;}
+  .pc-badge{font-size:12px; font-weight:600; color:var(--teal); border:1px solid var(--teal); border-radius:10px; padding:2px 8px; margin-left:8px; vertical-align:middle;}
+  .pc-payto{font-size:12px; color:var(--sub); margin-left:8px; vertical-align:middle;}
+  .pc-payto-row{margin-top:2px;}
+  .pc-payto-row .pc-payto{margin-left:0; margin-right:10px;}
+  .pc-reminder{font-size:12px; color:var(--teal); font-weight:600; margin-right:10px; vertical-align:middle;}
+  .pc-payto.expiry-warn{color:var(--red); font-weight:600;}
+  .hist-btn{font-size:12px; color:var(--sub); border:1px solid var(--border); border-radius:8px; padding:1px 6px; margin-left:6px; background:#fff; vertical-align:middle;}
+  .hist-inline{margin-top:6px; text-align:left; white-space:normal; font-size:12px; color:var(--sub); background:#FAFAF7; border:1px solid var(--border); border-radius:6px; padding:6px 8px; line-height:1.6;}
+  .hist-inline.hidden{display:none;}
+  .hist-inline .hi-row{display:flex; justify-content:space-between; gap:6px;}
+  .hist-inline .hi-empty{color:#BDBDBD;}
+
+  /* ---- 顯示/隱藏已繳完項目切換 ---- */
+  .view-toggle{display:flex; justify-content:flex-end; padding:0 2px 8px; font-size:14px; color:var(--sub);}
+  .view-toggle label{display:flex; align-items:center; gap:6px;}
+  .view-toggle input{width:17px; height:17px;}
+
+  /* ---- 月份扣款總覽：當月欄位標示 ---- */
+  .summary-table th.current-col,.summary-table td.current-col{background:#FFF8E1;}
+  .summary-table thead th.current-col{background:#FFECB3;}
+
+  /* ---- 待辦提醒卡 ---- */
+  .todo-card{background:#FFF8E1; border:1px solid #FFE082; border-radius:12px; padding:12px 14px; margin:0 16px 12px;}
+  .todo-card h4{margin:0 0 6px; font-size:16px; color:var(--orange);}
+  .todo-card ul{margin:0; padding-left:0; list-style:none;}
+  .todo-card li{font-size:15px; padding:5px 0; border-top:1px solid #FFECB3; display:flex; justify-content:space-between; gap:8px; cursor:pointer;}
+  .todo-card li:first-child{border-top:none;}
+  .todo-card li .ti-tag{flex:0 0 auto; font-size:12px; padding:1px 6px; border-radius:8px; color:#fff;}
+  .todo-card li .ti-tag.pay{background:var(--teal);}
+  .todo-card li .ti-tag.exp{background:var(--red);}
+  .todo-card li .ti-text{flex:1;}
+
+  /* ---- 分頁說明 ---- */
+  .view-desc{font-size:13px; color:var(--sub); padding:0 2px 10px;}
+  .policy-card tbody tr.item-active td{background:#FFF8E1; font-weight:600;}
+  .policy-card tbody tr.item-paidoff td{color:var(--sub);}
+  .policy-card input.prem-edit{
+    width:80px; font-size:16px; font-weight:600; text-align:right; padding:4px 6px;
+    border:1px solid var(--teal); border-radius:6px; background:#fff; color:var(--text);
+  }
+
+  /* ---- 保費總覽 ---- */
+  .summary-table{background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:16px;}
+  .summary-table table{width:auto; min-width:100%; border-collapse:collapse; font-size:15px;}
+  .summary-table th,.summary-table td{padding:9px 7px; text-align:right; border-top:1px solid var(--border); white-space:nowrap;}
+  .summary-table th:first-child,.summary-table td:first-child{text-align:left; position:sticky; left:0; background:var(--card); z-index:2; min-width:120px;}
+  .summary-table thead th{background:#F1F8E9; border-top:none; font-weight:600; position:sticky; top:0; z-index:3;}
+  .summary-table thead th:first-child{z-index:4; background:#F1F8E9;}
+  .summary-table tbody tr.total-row td{background:#F1F8E9; font-weight:600;}
+  .summary-table tbody tr.current-row td{background:#FFF8E1;}
+  .status-cell{text-align:left !important; line-height:1.5;}
+  .status-cell .status-paidoff{color:var(--sub); font-size:14px;}
+  .status-cell .status-active{color:var(--teal); font-weight:600; font-size:15px;}
+  .policy-cell .status-detail{display:block; color:var(--sub); font-size:12px; font-weight:normal; margin-top:2px;}
+  .table-scroll{overflow-x:auto; max-height:65vh;}
+
+  .note-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:15px; color:var(--sub); line-height:1.7;}
+  .note-card h4{margin:0 0 8px; font-size:17px; font-weight:600; color:var(--header);}
+
+  nav.bottom{
+    position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card);
+    border-top:1px solid var(--border); z-index:30;
+  }
+  nav.bottom .ntab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:9px 0 8px; font-size:14px; color:#BDBDBD; border:none; background:none;
+    text-decoration:none;
+  }
+  nav.bottom .ntab.active{color:var(--teal); font-weight:600;}
+  nav.bottom .ntab .ic{font-size:22px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <div class="title-area">
+      <div class="h-label">保單繳費</div>
+      <div class="h-sub" id="ageSub">—</div>
+    </div>
+  </div>
+</header>
+
+<div class="summary-cards">
+  <div class="scard">
+    <p class="lab">仍繳費中年保費合計</p>
+    <p class="val" id="totalPremVal">NT$ 0</p>
+  </div>
+  <div class="scard">
+    <p class="lab">Nicole 合計</p>
+    <p class="val" id="personA_Val">NT$ 0</p>
+  </div>
+  <div class="scard">
+    <p class="lab">媽媽 合計</p>
+    <p class="val" id="personB_Val">NT$ 0</p>
+  </div>
+</div>
+
+<div class="policy-tabs main-tabs" id="viewTabs"></div>
+
+<main>
+  <div id="todoCard"></div>
+  <div id="listView"></div>
+  <div id="overviewView"></div>
+  <div class="note-card" id="noteCard"></div>
+</main>
+
+<nav class="bottom">
+  <a class="ntab" href="index.html"><span class="ic">🧾</span>支出</a>
+  <a class="ntab" href="income.html"><span class="ic">💰</span>收入</a>
+  <a class="ntab" href="policy-value.html"><span class="ic">🛡</span>保單現價</a>
+  <a class="ntab active" href="payment.html"><span class="ic">📄</span>繳費</a>
+</nav>
+
+<script>
+/* ===================== 保單繳費資料 (來自 保單繳費明細.xlsx) ===================== */
+/* AGE_GROUPS: 每個年齡區間一筆，內含 persons(投保項目清單) 與 monthly(保費明細彙總) */
+const AGE_GROUPS = [
+  {
+    key: '50-54',
+    label: '50-54歲',
+    updated: '1140106 / 1130717',
+    persons: [
+      {
+        name: 'Nicole',
+        policies: [
+          {
+            company: '國泰', policyNo: '1001233101', date: '87/12/18', payType: '年繳',
+            premium: 6452,
+            items: [
+              { code:'NY', name:'新癌症終身健康保險', term:'20年期', amount:'3單位', prem:4170 },
+              { code:'RPA', name:'意外傷害保險', term:'至70歲', amount:'50萬元', prem:398 },
+              { code:'RMR', name:'醫療限額', term:'至70歲', amount:'5萬元', prem:689 },
+              { code:'DHI', name:'意外住院日額', term:'至70歲', amount:'5單位', prem:204 },
+            ]
+          },
+          {
+            company: '國泰', policyNo: '1001268784', date: '87/12/24', payType: '年繳',
+            premium: 123693,
+            items: [
+              { code:'NI', name:'美奐增值終身保險', term:'20年期', amount:'35萬元', prem:19423 },
+              { code:'ND', name:'彩色人生D型', term:'20年期', amount:'100萬元', prem:93507 },
+              { code:'', name:'美好人生終身健康保險附約', term:'20年期', amount:'35萬元', prem:2003 },
+              { code:'', name:'日額型住院醫療終身保險附約', term:'20年期', amount:'15單位', prem:7260 },
+              { code:'', name:'安心終身健康保險附約', term:'20年期', amount:'2單位', prem:1480 },
+            ]
+          },
+          {
+            company: '國泰', policyNo: '1002281049', date: '88/12/27', payType: '年繳',
+            premium: 117913,
+            items: [
+              { code:'NY', name:'新癌症終身健康保險', term:'20年期', amount:'1單位', prem:1489 },
+              { code:'RD', name:'彩色人生D型', term:'20年期', amount:'105萬元', prem:116424 },
+            ]
+          },
+          {
+            company: '全球(國華)', policyNo: 'H1056790', date: '89/12/29', payType: '年繳',
+            premium: 9840,
+            items: [
+              { code:'', name:'安心保本終身壽險', term:'20年期', amount:'10萬元', prem:868 },
+              { code:'', name:'安心住院日額終身附約(甲型)', term:'20年期', amount:'計劃10', prem:8840 },
+              { code:'', name:'豁免保費保險附約-甲型', term:'20年期', amount:'附加', prem:132 },
+            ]
+          },
+          {
+            company: '國泰', policyNo: '1003695949', date: '89/12/31', payType: '年繳',
+            premium: 112561,
+            items: [
+              { code:'NI', name:'美奐增值終身保險', term:'20年期', amount:'15萬元', prem:8708 },
+              { code:'RD', name:'彩色人生D型', term:'20年期', amount:'95萬元', prem:103853 },
+            ]
+          },
+          {
+            company: '遠雄(蘇黎世)', policyNo: '306030106', date: '91/8/16', payType: '年繳',
+            premium: 188124,
+            items: [
+              { code:'ISF', name:'千禧長春終身壽險-丙型', term:'20年期', amount:'120萬元', prem:84826 },
+              { code:'IOC', name:'千禧長春終身壽險附約-丙型', term:'20年期', amount:'331萬元', prem:103298 },
+            ]
+          },
+          {
+            company: '宏泰', policyNo: '9100024957', date: '97/7/15', payType: '躉繳',
+            premium: 200000,
+            items: [
+              { code:'VAWE', name:'樂活人生變額年金', term:'×', amount:'×', prem:200000 },
+            ]
+          },
+          {
+            company: '遠雄', policyNo: '102745477-8', date: '107/2/12', payType: '年繳',
+            premium: 18888,
+            items: [
+              { code:'F12', name:'新終身壽險(106)', term:'20年期', amount:'10萬元', prem:0 },
+              { code:'HW2', name:'超好心B型殘廢照護終身健康保險附約(106)', term:'20年期', amount:'100萬元', prem:10800 },
+              { code:'RJ1', name:'康富醫療健康保險附約', term:'至84歲', amount:'計劃二', prem:8088 },
+            ]
+          },
+          {
+            company: '全球', policyNo: '0056044780', date: '107/2/13', payType: '年繳',
+            premium: 8040,
+            items: [
+              { code:'LDC', name:'安養久久終身健康保險(C型)', term:'20年期', amount:'1萬元', prem:4820 },
+              { code:'XHR', name:'醫療費用健康保險附約', term:'至80歲', amount:'計劃四', prem:3220 },
+            ]
+          },
+        ]
+      },
+      {
+        name: '媽媽',
+        policies: [
+          {
+            company: '國泰', policyNo: '1001194261', date: '87/12/4', payType: '年繳',
+            premium: 20917,
+            items: [
+              { code:'NY', name:'新癌症終身健康保險', term:'20年期', amount:'2單位', prem:8841 },
+              { code:'RWS', name:'溫馨醫療日額保險附約', term:'至75歲', amount:'10單位', prem:11562 },
+              { code:'RPA', name:'意外傷害保險', term:'至70歲', amount:'30萬元', prem:239 },
+              { code:'RMR', name:'醫療限額', term:'至70歲', amount:'3萬元', prem:275 },
+              { code:'DHI', name:'意外住院日額', term:'至70歲', amount:'5單位', prem:122 },
+            ]
+          },
+          {
+            company: '國泰', policyNo: '1001194270', date: '87/12/24', payType: '年繳',
+            premium: 9202,
+            items: [
+              { code:'NL', name:'美侖終身保險', term:'20年期', amount:'30萬元', prem:9202 },
+            ]
+          },
+        ]
+      },
+    ],
+    /* 保費明細彙總：月份扣款情況(部分保單為一次性年繳，主要顯示在合計欄) */
+    monthly: {
+      months: ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
+      rows: [
+        { person:'Nicole', company:'1.國泰', policyNo:'1001233101', date:'871218', vals:[null,null,null,null,null,null,null,null,null,null,null,1291], total:28030, note:'每月9,19,29號扣（含同一人其他保單合計）', active:false },
+        { person:'Nicole', company:'2.國泰', policyNo:'1001268784', date:'871224', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
+        { person:'Nicole', company:'3.國泰', policyNo:'1002281049', date:'881227', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
+        { person:'Nicole', company:'4.全球(國華)', policyNo:'H1056790', date:'891229', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
+        { person:'Nicole', company:'5.國泰', policyNo:'1003695949', date:'891231', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
+        { person:'Nicole', company:'6.遠雄(蘇黎世)', policyNo:'306030106', date:'910816', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
+        { person:'Nicole', company:'7.遠雄', policyNo:'102745477-8', date:'1070212', vals:[null,18699,null,null,null,null,null,null,null,null,null,null], total:null, note:'每月5,15,25號扣；55-59歲調整為19,232；新終身壽險(106)(F12)已辦理減額繳清,保費為0；康富醫療健康保險附約(RJ1)繳至84歲；超好心B型殘廢照護終身健康保險附約(106)(HW2)20年期繳至127/2/12', active:true,
+          activeItems:[ {code:'RJ1', payToAge:84}, {code:'HW2', payToDate:'2038-02-12'} ] },
+        { person:'Nicole', company:'8.全球', policyNo:'0056044780', date:'1070213', vals:[null,8040,null,null,null,null,null,null,null,null,null,null], total:null, note:'每月16,30號扣；55-59歲調整為8,314；醫療費用健康保險附約(XHR)繳至80歲；安養久久終身健康保險(C型)(LDC)20年期繳至127/2/13', active:true,
+          activeItems:[ {code:'XHR', payToAge:80}, {code:'LDC', payToDate:'2038-02-13'} ] },
+        { person:'媽媽', company:'1.國泰', policyNo:'1001194261', date:'871204', vals:[null,null,null,null,null,null,null,null,null,null,null,11562], total:11562, note:'每月9,19,29號扣；其中溫馨醫療日額保險附約(RWS)11,562元繳費至75歲', active:true,
+          activeItems:[ {code:'RWS', payToAge:75} ] },
+        { person:'媽媽', company:'2.國泰', policyNo:'1001194270', date:'871224', vals:[null,null,null,null,null,null,null,null,null,null,null,0], total:0, note:null, active:false },
+      ],
+      totalRow: { vals:[null,26739,null,null,null,null,null,null,null,null,null,12853], total:39592 }
+    },
+    note: '本表為各保單投保項目與保費明細，資料來源為「保單繳費明細.xlsx」(50-54歲分頁，1140106更新)。「保費明細」分頁顯示每月扣款金額與合計(1130717更新)，部分保單因採年繳/季繳，僅在特定月份顯示扣款金額；空白表示當月無資料記錄。'
+  }
+];
+
+const MOM_BIRTH = { year: 41, month: 4, day: 12 };    // 媽媽：民國41年4月12日
+const NICOLE_BIRTH = { year: 63, month: 8, day: 17 }; // Nicole：民國63年8月17日
+
+// 計算保險年齡(週年制：已過生日才+1歲)
+function insuranceAge(birth){
+  const now = new Date();
+  const birthCE = birth.year + 1911;
+  let age = now.getFullYear() - birthCE;
+  const hasHadBirthdayThisYear = (now.getMonth()+1 > birth.month) || (now.getMonth()+1 === birth.month && now.getDate() >= birth.day);
+  if(!hasHadBirthdayThisYear) age -= 1;
+  return age;
+}
+
+const BIRTHS = { 'Nicole': NICOLE_BIRTH, '媽媽': MOM_BIRTH };
+
+// 計算單一item的繳費狀態：active(是否仍在期內)、remain(約剩幾年)
+function getItemStatus(spec, person){
+  let active, remain;
+  if(spec.payToDate){
+    const now = new Date();
+    const target = new Date(spec.payToDate);
+    const msPerYear = 365.25*24*3600*1000;
+    const diffYears = (target - now) / msPerYear;
+    active = diffYears > 0;
+    remain = Math.max(0, Math.floor(diffYears));
+  } else if(spec.payToAge){
+    const age = insuranceAge(BIRTHS[person]);
+    active = age < spec.payToAge;
+    remain = Math.max(0, spec.payToAge - age);
+  } else {
+    active = true; remain = null;
+  }
+  return { active, remain };
+}
+
+// 判斷某筆保費明細列是否仍在繳費中：原始active為true，且activeItems中至少一項仍在期內
+function isRowActive(row){
+  if(!row.active) return false;
+  if(!row.activeItems || row.activeItems.length===0) return true;
+  return row.activeItems.some(spec=> getItemStatus(spec, row.person).active);
+}
+
+let currentView = 'list'; // 'list' | 'overview'
+
+const HIDE_PAIDOFF_KEY = 'paymentHidePaidOff_v1';
+let hidePaidOff = localStorage.getItem(HIDE_PAIDOFF_KEY) === '1';
+
+function fmt(n){
+  if(n===null || n===undefined || n==='') return '—';
+  return 'NT$ ' + Math.round(n).toLocaleString('zh-Hant');
+}
+function num(n){
+  if(n===null || n===undefined || n==='') return '—';
+  return Number(n).toLocaleString('zh-Hant');
+}
+
+/* ---- 繳費中項目保費手動調整(每5年微調一次) ---- */
+const PREM_OVERRIDE_KEY = 'paymentActivePremOverride_v1';
+function loadPremOverrides(){
+  try{ return JSON.parse(localStorage.getItem(PREM_OVERRIDE_KEY)) || {}; }catch(e){ return {}; }
+}
+function savePremOverrides(obj){ localStorage.setItem(PREM_OVERRIDE_KEY, JSON.stringify(obj)); }
+function premKey(policyNo, code){ return policyNo + '_' + (code||''); }
+function getEffectivePrem(policyNo, code, defaultPrem){
+  const ov = loadPremOverrides();
+  const k = premKey(policyNo, code);
+  return ov[k]!==undefined ? ov[k] : defaultPrem;
+}
+
+/* ---- 繳費日提醒：依投保日期(年繳)推算下次繳費月/日與剩餘天數 ---- */
+function nextAnniversary(dateStr){
+  const parts = (dateStr||'').split('/');
+  if(parts.length<3) return null;
+  const month = Number(parts[1]), day = Number(parts[2]);
+  if(!month || !day) return null;
+  const now = new Date();
+  let next = new Date(now.getFullYear(), month-1, day);
+  if(next < now) next = new Date(now.getFullYear()+1, month-1, day);
+  const diffDays = Math.ceil((next - now) / (24*3600*1000));
+  return { month, day, diffDays };
+}
+
+/* ---- 保費手動調整歷史記錄 ---- */
+const PREM_HISTORY_KEY = 'paymentPremHistory_v1';
+function loadPremHistory(){
+  try{ return JSON.parse(localStorage.getItem(PREM_HISTORY_KEY)) || {}; }catch(e){ return {}; }
+}
+function savePremHistory(obj){ localStorage.setItem(PREM_HISTORY_KEY, JSON.stringify(obj)); }
+function pushPremHistory(policyNo, code, oldVal, newVal){
+  if(oldVal === newVal) return;
+  const hist = loadPremHistory();
+  const k = premKey(policyNo, code);
+  if(!hist[k]) hist[k] = [];
+  const today = new Date();
+  const roc = `${today.getFullYear()-1911}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+  hist[k].push({ date: roc, from: oldVal, to: newVal });
+  savePremHistory(hist);
+}
+/* ---- 待辦提醒：彙整60天內繳費、1年內到期的項目 ---- */
+function collectReminders(g){
+  const list = [];
+  g.persons.forEach(p=>{
+    p.policies.forEach(pol=>{
+      const mrow = g.monthly.rows.find(r=> r.person===p.name && r.policyNo===pol.policyNo);
+      if(!isRowActive(mrow||{})) return;
+
+      // 繳費日提醒(年繳)
+      if(pol.payType==='年繳'){
+        const na = nextAnniversary(pol.date);
+        if(na && na.diffDays<=60){
+          list.push({
+            type:'pay', policyNo: pol.policyNo,
+            text: `${p.name}・${pol.company} ${pol.policyNo}　約${na.month}/${na.day}繳費(${na.diffDays}天後)`
+          });
+        }
+      }
+
+      // 到期提醒(各activeItems)
+      (mrow.activeItems||[]).forEach(spec=>{
+        const status = getItemStatus(spec, p.name);
+        if(status.active && status.remain!==null && status.remain<=1){
+          const item = pol.items.find(it=>it.code===spec.code);
+          const target = spec.payToAge ? `${spec.payToAge}歲` : `${Number(spec.payToDate.slice(0,4))-1911}/${spec.payToDate.slice(5,7)}/${spec.payToDate.slice(8,10)}`;
+          list.push({
+            type:'exp', policyNo: pol.policyNo,
+            text: `${p.name}・${item?item.name:spec.code}(${spec.code})　約剩${status.remain}年(至${target})`
+          });
+        }
+      });
+    });
+  });
+  return list;
+}
+
+function renderTodoCard(g){
+  const wrap = document.getElementById('todoCard');
+  const items = collectReminders(g);
+  if(!items.length){ wrap.innerHTML = ''; return; }
+  let html = `<div class="todo-card"><h4>⏰ 近期待辦提醒</h4><ul>`;
+  items.forEach((it,i)=>{
+    const tagLabel = it.type==='pay' ? '繳費' : '到期';
+    html += `<li data-policy="${it.policyNo}"><span class="ti-tag ${it.type}">${tagLabel}</span><span class="ti-text">${it.text}</span></li>`;
+  });
+  html += `</ul></div>`;
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.todo-card li').forEach(li=>{
+    li.onclick = ()=>{
+      currentView = 'list';
+      render();
+      requestAnimationFrame(()=>{
+        const target = document.getElementById('pcard-' + li.dataset.policy);
+        if(target) target.scrollIntoView({behavior:'smooth', block:'center'});
+      });
+    };
+  });
+}
+
+function render(){
+  renderViewTabs();
+  const g = AGE_GROUPS[0];
+
+  const nicoleAge = insuranceAge(NICOLE_BIRTH);
+  const momAge = insuranceAge(MOM_BIRTH);
+  document.getElementById('ageSub').textContent = `Nicole ${nicoleAge}歲・媽媽 ${momAge}歲`;
+
+  renderSummaryCards(g);
+  renderTodoCard(g);
+
+  if(currentView==='list'){
+    document.getElementById('listView').classList.remove('hidden');
+    document.getElementById('overviewView').classList.add('hidden');
+    renderListView(g);
+  } else {
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('overviewView').classList.remove('hidden');
+    renderOverviewView(g);
+  }
+
+  renderNote(g);
+}
+
+function renderViewTabs(){
+  const wrap = document.getElementById('viewTabs');
+  wrap.innerHTML = '';
+  [['list','投保項目清單'],['overview','月份扣款總覽']].forEach(([key,label])=>{
+    const b = document.createElement('button');
+    b.className = 'ptab' + (currentView===key?' active':'');
+    b.textContent = label;
+    b.onclick = ()=>{ currentView = key; render(); };
+    wrap.appendChild(b);
+  });
+}
+
+
+// 計算某筆保費明細列目前的合計：若已轉為已繳完則為0；
+// 針對activeItems中每一項，若目前仍在期內則用override保費，已到期則不計入；
+// 並從原total中扣除這些項目原本的保費(避免重複計算)，加回有效金額
+function getRowEffectiveTotal(g, r){
+  if(!isRowActive(r)) return 0;
+  let result = r.total!==null ? Number(r.total)||0 : 0;
+  if(r.activeItems && r.activeItems.length){
+    const person = g.persons.find(p=>p.name===r.person);
+    const pol = person && person.policies.find(pl=>pl.policyNo===r.policyNo);
+    r.activeItems.forEach(spec=>{
+      const item = pol && pol.items.find(it=>it.code===spec.code);
+      if(!item) return;
+      if(r.total!==null){
+        result -= (Number(item.prem)||0);
+      }
+      const status = getItemStatus(spec, r.person);
+      if(status.active){
+        result += getEffectivePrem(r.policyNo, item.code, item.prem);
+      }
+    });
+  }
+  return result;
+}
+
+function renderSummaryCards(g){
+  // 仍繳費中金額：採用「保費總覽」各列合計，並依override與是否已達payToAge即時調整
+  const personTotals = {};
+  let lastPerson = '';
+  g.monthly.rows.forEach(r=>{
+    if(r.person !== lastPerson){ personTotals[r.person] = 0; lastPerson = r.person; }
+    personTotals[r.person] += getRowEffectiveTotal(g, r);
+  });
+  const total = Object.values(personTotals).reduce((s,v)=>s+v,0);
+
+  document.getElementById('totalPremVal').textContent = fmt(total);
+
+  const names = Object.keys(personTotals);
+  const labA = document.querySelector('.summary-cards .scard:nth-child(2) .lab');
+  const labB = document.querySelector('.summary-cards .scard:nth-child(3) .lab');
+  const valA = document.getElementById('personA_Val');
+  const valB = document.getElementById('personB_Val');
+  if(names[0]){ labA.textContent = names[0] + ' 仍繳費中合計'; valA.textContent = fmt(personTotals[names[0]]); }
+  if(names[1]){ labB.textContent = names[1] + ' 仍繳費中合計'; valB.textContent = fmt(personTotals[names[1]]); } else { labB.textContent='—'; valB.textContent='—'; }
+}
+
+function renderListView(g){
+  const wrap = document.getElementById('listView');
+  let html = '<div class="view-desc">這張保單保障什麼、現在每年/每期繳多少</div>';
+  html += `<div class="view-toggle"><label><input type="checkbox" id="hidePaidOffChk" ${hidePaidOff?'checked':''}> 隱藏已繳完項目/保單</label></div>`;
+  g.persons.forEach(p=>{
+    html += `<div class="person-group"><h3>${p.name}</h3>`;
+    const sortedPolicies = p.policies.slice().sort((a,b)=>{
+      const ra = g.monthly.rows.find(r=> r.person===p.name && r.policyNo===a.policyNo);
+      const rb = g.monthly.rows.find(r=> r.person===p.name && r.policyNo===b.policyNo);
+      const aActive = isRowActive(ra||{});
+      const bActive = isRowActive(rb||{});
+      return (bActive?1:0) - (aActive?1:0);
+    });
+    sortedPolicies.forEach(pol=>{
+      const mrow = g.monthly.rows.find(r=> r.person===p.name && r.policyNo===pol.policyNo);
+      const isActive = isRowActive(mrow||{});
+      if(hidePaidOff && !isActive) return; // 隱藏已繳完保單
+      const specs = (mrow && isActive && mrow.activeItems) ? mrow.activeItems : [];
+      // 計算每個item的狀態(僅保留目前仍在期內的)
+      const liveSpecs = specs.map(spec=>{
+        const item = pol.items.find(it=>it.code===spec.code);
+        const status = item ? getItemStatus(spec, p.name) : {active:false, remain:null};
+        return { spec, item, status };
+      }).filter(x=>x.item);
+
+      const headerPrem = liveSpecs.length
+        ? liveSpecs.filter(x=>x.status.active).reduce((s,x)=> s + getEffectivePrem(pol.policyNo, x.item.code, x.item.prem), 0)
+        : pol.premium;
+
+      const payToInfo = liveSpecs.filter(x=>x.status.active).map(x=>{
+        const target = x.spec.payToAge ? `${x.spec.payToAge}歲` : `${Number(x.spec.payToDate.slice(0,4))-1911}/${x.spec.payToDate.slice(5,7)}/${x.spec.payToDate.slice(8,10)}`;
+        const warn = (x.status.remain!==null && x.status.remain<=1) ? ' expiry-warn' : '';
+        const tag = warn ? '⚠' : '';
+        return `<span class="pc-payto${warn}">${tag}${x.item.code}繳至${target}(約剩${x.status.remain}年)</span>`;
+      }).join('');
+
+      const na = (isActive && pol.payType==='年繳') ? nextAnniversary(pol.date) : null;
+      const reminderInfo = (na && na.diffDays<=60)
+        ? `<span class="pc-reminder">🔔 ${na.month}/${na.day}繳費(約${na.diffDays}天後)</span>` : '';
+
+      html += `
+        <div class="policy-card${isActive?'':' paid-off'}" id="pcard-${pol.policyNo}">
+          <div class="pc-head">
+            <span class="pc-company">${pol.company} ${pol.policyNo}${isActive?'<span class="pc-badge">繳費中</span>':''}</span>
+            <span class="pc-prem">${fmt(headerPrem)}</span>
+          </div>
+          ${(reminderInfo||payToInfo)?`<div class="pc-payto-row">${reminderInfo}${payToInfo}</div>`:''}
+          <div class="pc-meta">投保日期：${pol.date}　${pol.payType}</div>
+          <table>
+            <thead><tr><th>險種代號</th><th>險種名稱</th><th>年期</th><th>保額</th><th>保費</th></tr></thead>
+            <tbody>
+              ${pol.items.filter(it=>{
+                if(!hidePaidOff) return true;
+                const live = liveSpecs.find(x=>x.item.code===it.code);
+                const itemActive = live && live.status.active;
+                const itemPaidOff = (specs.some(s=>s.code===it.code) && !itemActive) || (!itemActive && specs.length>0);
+                return !itemPaidOff;
+              }).map(it=>{
+                const live = liveSpecs.find(x=>x.item.code===it.code);
+                const itemActive = live && live.status.active;
+                const itemPaidOff = (specs.some(s=>s.code===it.code) && !itemActive) || (!itemActive && specs.length>0);
+                const cls = itemActive ? ' class="item-active"' : (itemPaidOff ? ' class="item-paidoff"' : '');
+                let premCell;
+                if(itemActive){
+                  const eff = getEffectivePrem(pol.policyNo, it.code, it.prem);
+                  const histId = `hist-${pol.policyNo}_${it.code}`;
+                  premCell = `<div><input type="number" class="prem-edit" data-policy="${pol.policyNo}" data-code="${it.code}" value="${eff}"><button type="button" class="hist-btn" data-target="${histId}">📜</button></div><div class="hist-inline hidden" id="${histId}"></div>`;
+                } else {
+                  premCell = num(it.prem);
+                }
+                return `<tr${cls}><td>${it.code||'—'}</td><td>${it.name}</td><td>${it.term}</td><td>${it.amount}</td><td>${premCell}</td></tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          ${pol.note?`<div class="pc-note">※ ${pol.note}</div>`:''}
+        </div>
+      `;
+    });
+    html += `</div>`;
+  });
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.prem-edit').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const ov = loadPremOverrides();
+      const k = premKey(e.target.dataset.policy, e.target.dataset.code);
+      const oldVal = ov[k]!==undefined ? ov[k] : Number(e.target.defaultValue)||0;
+      const val = Number(e.target.value)||0;
+      pushPremHistory(e.target.dataset.policy, e.target.dataset.code, oldVal, val);
+      ov[k] = val;
+      savePremOverrides(ov);
+      render();
+    };
+  });
+  wrap.querySelectorAll('.hist-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const panel = document.getElementById(btn.dataset.target);
+      if(!panel) return;
+      if(!panel.classList.contains('hidden')){ panel.classList.add('hidden'); return; }
+      const [policyNo, code] = btn.dataset.target.replace('hist-','').split('_');
+      const hist = loadPremHistory()[premKey(policyNo, code)] || [];
+      panel.innerHTML = hist.length
+        ? hist.map(h=>`<div class="hi-row"><span>${h.date}</span><span>${num(h.from)} → ${num(h.to)}</span></div>`).join('')
+        : `<div class="hi-empty">尚無調整記錄</div>`;
+      panel.classList.remove('hidden');
+    };
+  });
+  const chk = document.getElementById('hidePaidOffChk');
+  if(chk){
+    chk.onchange = (e)=>{
+      hidePaidOff = e.target.checked;
+      localStorage.setItem(HIDE_PAIDOFF_KEY, hidePaidOff ? '1' : '0');
+      render();
+    };
+  }
+}
+
+function renderOverviewView(g){
+  const wrap = document.getElementById('overviewView');
+  const m = g.monthly;
+  const curMonthIdx = new Date().getMonth(); // 0=一月...11=十二月
+  let html = '<div class="view-desc">全年現金流：本月與各月份扣款金額一覽</div><div class="summary-table"><div class="table-scroll"><table><thead><tr><th>保單</th>';
+  m.months.forEach((mo,i)=> html += `<th${i===curMonthIdx?' class="current-col"':''}>${mo}</th>`);
+  html += '<th>合計</th><th>狀態</th></tr></thead><tbody>';
+
+  let lastPerson = '';
+  m.rows.forEach(r=>{
+    if(r.person !== lastPerson){
+      html += `<tr><td colspan="${m.months.length+3}" style="background:#F1F8E9; font-weight:600;">${r.person}</td></tr>`;
+      lastPerson = r.person;
+    }
+    const active = isRowActive(r);
+    const cls = active ? ' class="current-row"' : '';
+    let detailLines = '';
+    if(active && r.activeItems){
+      r.activeItems.forEach(spec=>{
+        const status = getItemStatus(spec, r.person);
+        if(!status.active) return;
+        const target = spec.payToAge ? `${spec.payToAge}歲` : `民國${Number(spec.payToDate.slice(0,4))-1911}年`;
+        detailLines += `<span class="status-detail">${spec.code} 約剩${status.remain}年(至${target})</span>`;
+      });
+    }
+    html += `<tr${cls}><td class="policy-cell">${r.company} ${r.policyNo}${detailLines}</td>`;
+    r.vals.forEach((v,i)=> html += `<td${i===curMonthIdx?' class="current-col"':''}>${v!==null?num(v):'—'}</td>`);
+    const rowTotal = getRowEffectiveTotal(g, r);
+    html += `<td>${(r.total!==null || (r.activeItems&&r.activeItems.length)) ? num(rowTotal) : '—'}</td>`;
+    const statusHtml = active ? '<span class="status-active">繳費中</span>' : '<span class="status-paidoff">已繳完</span>';
+    html += `<td class="status-cell">${statusHtml}</td></tr>`;
+  });
+
+  const grandTotal = m.rows.reduce((s,r)=> s + getRowEffectiveTotal(g, r), 0);
+  html += `<tr class="total-row"><td>合　計</td>`;
+  m.totalRow.vals.forEach((v,i)=> html += `<td${i===curMonthIdx?' class="current-col"':''}>${v!==null?num(v):'—'}</td>`);
+  html += `<td>${num(grandTotal)}</td><td></td></tr>`;
+
+  html += '</tbody></table></div></div>';
+  wrap.innerHTML = html;
+}
+
+function renderNote(g){
+  document.getElementById('noteCard').innerHTML = `<h4>說明</h4><div>${g.note}　(${g.updated})</div>`;
+}
+
+render();
+</script>
+</body>
+</html>
