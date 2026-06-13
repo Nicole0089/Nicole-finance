@@ -200,8 +200,8 @@ const AGE_GROUPS = [
             items: [
               { code:'NY', name:'新癌症終身健康保險', term:'20年期', amount:'3單位', prem:4170 },
               { code:'RPA', name:'意外傷害保險', term:'至70歲', amount:'50萬元', prem:398 },
-              { code:'RMR', name:'醫療限額', term:'至70歲', amount:'5萬元', prem:689 },
-              { code:'DHI', name:'意外住院日額', term:'至70歲', amount:'5單位', prem:204 },
+              { code:'RMR', name:'醫療限額', term:'至70歲', amount:'5萬元', prem:611 },
+              { code:'DHI', name:'意外住院日額', term:'至70歲', amount:'5單位', prem:200 },
             ]
           },
           {
@@ -261,7 +261,7 @@ const AGE_GROUPS = [
             items: [
               { code:'F12', name:'新終身壽險(106)', term:'20年期', amount:'10萬元', prem:0 },
               { code:'HW2', name:'超好心B型殘廢照護終身健康保險附約(106)', term:'20年期', amount:'100萬元', prem:10800 },
-              { code:'RJ1', name:'康富醫療健康保險附約', term:'至84歲', amount:'計劃二', prem:8088 },
+              { code:'RJ1', name:'康富醫療健康保險附約', term:'至84歲', amount:'計劃二', prem:7820 },
             ]
           },
           {
@@ -302,7 +302,8 @@ const AGE_GROUPS = [
     monthly: {
       months: ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
       rows: [
-        { person:'Nicole', company:'1.國泰', policyNo:'1001233101', date:'871218', vals:[null,null,null,null,null,null,null,null,null,null,null,1291], total:28030, note:'每月9,19,29號扣（含同一人其他保單合計）', active:false },
+        { person:'Nicole', company:'1.國泰', policyNo:'1001233101', date:'871218', vals:[null,null,null,null,null,null,null,null,null,null,null,1209], total:1209, note:'每月9,19,29號扣；意外傷害保險(RPA)、醫療限額(RMR)、意外住院日額(DHI)皆繳至70歲，每年12月合計1,209元', active:true,
+          activeItems:[ {code:'RPA', payToAge:70}, {code:'RMR', payToAge:70}, {code:'DHI', payToAge:70} ] },
         { person:'Nicole', company:'2.國泰', policyNo:'1001268784', date:'871224', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
         { person:'Nicole', company:'3.國泰', policyNo:'1002281049', date:'881227', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
         { person:'Nicole', company:'4.全球(國華)', policyNo:'H1056790', date:'891229', vals:[null,null,null,null,null,null,null,null,null,null,null,null], total:null, note:null, active:false },
@@ -316,7 +317,7 @@ const AGE_GROUPS = [
           activeItems:[ {code:'RWS', payToAge:75} ] },
         { person:'媽媽', company:'2.國泰', policyNo:'1001194270', date:'871224', vals:[null,null,null,null,null,null,null,null,null,null,null,0], total:0, note:null, active:false },
       ],
-      totalRow: { vals:[null,26739,null,null,null,null,null,null,null,null,null,12853], total:39592 }
+      totalRow: { vals:[null,26739,null,null,null,null,null,null,null,null,null,12771], total:39510 }
     },
     note: '本表為各保單投保項目與保費明細，資料來源為「保單繳費明細.xlsx」(50-54歲分頁，1140106更新)。「保費明細」分頁顯示每月扣款金額與合計(1130717更新)，部分保單因採年繳/季繳，僅在特定月份顯示扣款金額；空白表示當月無資料記錄。'
   }
