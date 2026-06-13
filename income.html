@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>各類收入明細</title>
+<style>
+  :root{
+    --header:#1B5E20;
+    --teal:#00695C;
+    --orange:#E65100;
+    --bg:#F5F5F0;
+    --card:#FFFFFF;
+    --border:#E0E0DA;
+    --text:#212121;
+    --sub:#757575;
+    --green:#2E7D32;
+    --red:#C62828;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  body{
+    margin:0; font-family:-apple-system,"Helvetica Neue","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg); color:var(--text); padding-bottom:74px; font-size:19px;
+  }
+  header{
+    background:var(--header); color:#E8F5E9; padding:16px 18px 14px;
+    position:sticky; top:0; z-index:20;
+  }
+  header .top-row{display:flex; align-items:center; justify-content:space-between;}
+  header .title-area .h-label{font-size:22px; font-weight:600;}
+  header .title-area .h-sub{font-size:15px; opacity:0.85; margin-top:2px;}
+
+  .summary-cards{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px;}
+  .summary-cards .scard:first-child{grid-column:1 / -1;}
+  .scard{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
+  .scard .lab{font-size:15px; color:var(--sub); margin:0 0 4px;}
+  .scard .val{font-size:23px; font-weight:600; margin:0; white-space:nowrap;}
+  .summary-cards .scard:not(:first-child) .val{font-size:19px;}
+
+  .policy-tabs{display:flex; gap:6px; padding:0 16px 10px;}
+  .policy-tabs.main-tabs .ptab{flex:1;}
+  .ptab{
+    flex:0 0 auto; padding:10px 14px; border-radius:20px; border:1px solid var(--border);
+    background:var(--card); font-size:17px; color:var(--text); text-align:center;
+  }
+  .ptab.active{background:var(--teal); color:#fff; border-color:var(--teal);}
+
+  main{padding:0 16px;}
+  .view-desc{font-size:13px; color:var(--sub); padding:0 2px 10px;}
+
+  /* ---- 表格 ---- */
+  .table-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:12px; background:var(--card);}
+  table{width:100%; border-collapse:collapse; font-size:15px; white-space:nowrap;}
+  th,td{padding:8px 10px; text-align:right; border-bottom:1px solid var(--border);}
+  th:first-child,td:first-child{text-align:left; position:sticky; left:0; background:var(--card); z-index:5;}
+  thead th{font-weight:600; color:var(--sub); font-size:13px; background:#FAFAF7; position:sticky; top:0; z-index:6;}
+  thead th:first-child{z-index:7;}
+  tbody tr:last-child td{border-bottom:none;}
+  tr.cur-year td{background:#FFF8E1;}
+  thead th:first-child{position:sticky; left:0; top:0;}
+  td.amt-pos{color:var(--green); font-weight:600;}
+  .note-row{display:block;}
+  .note-list{margin-top:10px;}
+  .note-row{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:10px 36px 10px 12px; margin-bottom:8px; position:relative;}
+  .note-row .note-year{font-size:13px; font-weight:600; color:var(--header); margin-bottom:4px;}
+  .note-row .note-body{font-size:13px; color:var(--sub); white-space:normal; word-break:break-word;}
+  .note-edit-btn{position:absolute; top:8px; right:8px; border:none; background:none; font-size:14px; padding:2px; cursor:pointer;}
+  .note-edit-area{width:100%; font-size:14px; font-family:inherit; border:1px solid var(--border); border-radius:6px; padding:6px; resize:vertical;}
+  .note-edit-actions{display:flex; gap:8px; margin-top:6px;}
+  .note-edit-actions button{font-size:13px; padding:5px 12px; border-radius:8px; border:1px solid var(--border); background:#fff;}
+  .note-save-btn{color:#fff; background:var(--teal); border-color:var(--teal);}
+
+  /* ---- 卡片(房貸/保貸餘額用) ---- */
+  .info-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px;}
+  .info-card h4{margin:0 0 8px; font-size:16px; color:var(--header);}
+
+  nav.bottom{
+    position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card);
+    border-top:1px solid var(--border); z-index:30;
+  }
+  nav.bottom .ntab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:9px 0 8px; font-size:14px; color:#BDBDBD; border:none; background:none;
+    text-decoration:none;
+  }
+  nav.bottom .ntab.active{color:var(--teal); font-weight:600;}
+  nav.bottom .ntab .ic{font-size:22px;}
+  .hidden{display:none !important;}
+
+  /* ---- 搜尋按鈕 ---- */
+  .search-open-btn{background:none;border:none;color:#E8F5E9;font-size:22px;padding:4px 6px;cursor:pointer;line-height:1;}
+
+  /* ---- 搜尋面板 ---- */
+  .search-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding-top:0;}
+  .search-panel{background:var(--card);width:100%;max-width:600px;min-height:100dvh;display:flex;flex-direction:column;}
+  .search-header{display:flex;align-items:center;justify-content:space-between;background:var(--header);color:#E8F5E9;padding:16px 18px;}
+  .search-title{font-size:18px;font-weight:600;}
+  .search-close-btn{background:none;border:none;color:#E8F5E9;font-size:22px;cursor:pointer;padding:2px 6px;}
+  .search-inputs{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+  .search-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:16px;font-family:inherit;background:#FAFAF7;}
+  .search-input:focus{outline:none;border-color:var(--teal);}
+  .search-row{display:flex;align-items:center;gap:6px;}
+  .search-year{flex:1;}
+  .search-dash{color:var(--sub);font-size:18px;}
+  .search-cats{display:flex;flex-wrap:wrap;gap:10px;font-size:14px;color:var(--sub);}
+  .search-cats label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+  .search-results{flex:1;overflow-y:auto;padding:10px 16px 20px;}
+  .sr-empty{color:var(--sub);font-size:14px;text-align:center;padding:30px 0;}
+  .sr-group{margin-bottom:16px;}
+  .sr-group-title{font-size:13px;font-weight:600;color:var(--header);margin:0 0 6px;padding:4px 0;border-bottom:1px solid var(--border);}
+  .sr-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;}
+  .sr-item:active{background:#F0F4F0;}
+  .sr-item .sr-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px;}
+  .sr-item .sr-year{font-size:14px;font-weight:600;color:var(--text);}
+  .sr-item .sr-amt{font-size:16px;font-weight:600;color:var(--green);}
+  .sr-item .sr-body{font-size:13px;color:var(--sub);white-space:normal;word-break:break-word;}
+  .sr-item mark{background:#FFF176;color:var(--text);border-radius:2px;padding:0 1px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <div class="title-area">
+      <div class="h-label">各類收入明細</div>
+      <div class="h-sub" id="headerSub">—</div>
+    </div>
+    <button class="search-open-btn" id="searchOpenBtn" title="搜尋">🔍</button>
+  </div>
+</header>
+
+<!-- 搜尋面板 -->
+<div class="search-overlay hidden" id="searchOverlay">
+  <div class="search-panel">
+    <div class="search-header">
+      <span class="search-title">全域搜尋</span>
+      <button class="search-close-btn" id="searchCloseBtn">✕</button>
+    </div>
+    <div class="search-inputs">
+      <input class="search-input" id="searchKeyword" type="text" placeholder="關鍵字（備註、金額、年份…）" autocomplete="off">
+      <div class="search-row">
+        <input class="search-input search-year" id="searchYearFrom" type="number" placeholder="從年" min="2000" max="2040">
+        <span class="search-dash">—</span>
+        <input class="search-input search-year" id="searchYearTo" type="number" placeholder="到年" min="2000" max="2040">
+      </div>
+      <div class="search-cats">
+        <label><input type="checkbox" class="sc" value="dividend" checked>股利</label>
+        <label><input type="checkbox" class="sc" value="foundation" checked>基金會薪資</label>
+        <label><input type="checkbox" class="sc" value="tax" checked>所得稅</label>
+        <label><input type="checkbox" class="sc" value="loan" checked>房貸保貸</label>
+      </div>
+    </div>
+    <div class="search-results" id="searchResults"><p class="sr-empty">請輸入關鍵字或年份進行搜尋</p></div>
+  </div>
+</div>
+
+<div class="summary-cards" id="summaryCards"></div>
+
+<div class="policy-tabs main-tabs" id="viewTabs"></div>
+<div class="view-desc" id="viewDesc"></div>
+
+<main>
+  <div id="mainView"></div>
+</main>
+
+<nav class="bottom">
+  <a class="ntab" href="index.html"><span class="ic">🧾</span>支出</a>
+  <a class="ntab active" href="income.html"><span class="ic">💰</span>收入</a>
+  <a class="ntab" href="policy-value.html"><span class="ic">🛡</span>保單現價</a>
+  <a class="ntab" href="payment.html"><span class="ic">📄</span>繳費</a>
+</nav>
+
+<script>
+/* ===================== 各類收入資料 (來自 各類收入明細.xlsx) ===================== */
+
+/* ---- 永x 股票股利明細 ---- */
+const DIVIDEND_DATA = [
+  {minguo:91, year:2002, age:28, shares:24, cash:4160, stock:0, ratio:'約1.733％', note:''},
+  {minguo:92, year:2003, age:29, shares:24, cash:64099, stock:0, ratio:'約2.67％', note:''},
+  {minguo:93, year:2004, age:30, shares:24.4, cash:111254, stock:'？', ratio:'約4.56％', note:''},
+  {minguo:94, year:2005, age:31, shares:'約38', cash:225000, stock:'13.6張', ratio:'約6％/5.57％', note:''},
+  {minguo:95, year:2006, age:32, shares:61.388, cash:386746, stock:'40張', ratio:'6.3％/6％', note:''},
+  {minguo:96, year:2007, age:33, shares:102.357, cash:720586, stock:'62張', ratio:'7.039％/6％', note:'完成MDRT/4月美國次貸危機'},
+  {minguo:97, year:2008, age:34, shares:164.8712, cash:1118640, stock:'41張', ratio:'6.785％/2.5％', note:'9月金融海嘯'},
+  {minguo:98, year:2009, age:35, shares:206.588, cash:1323487, stock:0, ratio:'6.422％', note:'4/4買房,9/28入住'},
+  {minguo:99, year:2010, age:36, shares:206.588, cash:1024253, stock:0, ratio:'4.958％', note:'2月底永達離職,5月和A-sam分手,6月帶爸媽去珠海澳門,10月去山東'},
+  {minguo:100, year:2011, age:37, shares:196.588, cash:625926, stock:0, ratio:'3.184％', note:'4月找段老師,6月學畫畫,10月學人類圖,11月去吳哥窟'},
+  {minguo:101, year:2012, age:38, shares:196.588, cash:633790, stock:0, ratio:'3.223％', note:'5月去香港看藝術展,10/21去深圳(永達理)11/25回台'},
+  {minguo:102, year:2013, age:39, shares:196.588, cash:889987, stock:0, ratio:'4.639％', note:'多扣健保費21,975元(2%)，3月至歐德，9月增貸80萬合購協會教室，11月至生活經紀人'},
+  {minguo:103, year:2014, age:40, shares:196.588, cash:712333, stock:0, ratio:'3.713％', note:'多扣健保費17,588元(2%)'},
+  {minguo:104, year:2015, age:41, shares:196.588, cash:648269, stock:0, ratio:'3.372％', note:'多扣健保費14,615元(2%)'},
+  {minguo:105, year:2016, age:42, shares:196.588, cash:653160, stock:0, ratio:'3.394％', note:'多扣健保費14,049元(2%)，7/12當協會理事長，9月讀研究所'},
+  {minguo:106, year:2017, age:43, shares:196.588, cash:764588, stock:0, ratio:'3.973％', note:'多扣健保費16,446元(1.91%)，4月房貸轉至星展1132萬，繳完第一張年金，12/26離開協會'},
+  {minguo:107, year:2018, age:44, shares:196.588, cash:876031, stock:0, ratio:'4.543％', note:'多扣健保費17,058元(1.91%)，繳完第二張年金，6月份畢業'},
+  {minguo:108, year:2019, age:45, shares:196.588, cash:900134, stock:0, ratio:'4.668％', note:'多扣健保費17,528元(1.91%)，繳完第三張年金，開始領第一張年金(20萬)'},
+  {minguo:109, year:2020, age:46, shares:196.588, cash:1287729, stock:0, ratio:'6.678％', note:'全球武漢肺炎，多扣健保費25,075元(1.9%)，開始領兩張年金(41萬)，世界庚十年大限第1年'},
+  {minguo:110, year:2021, age:47, shares:196.588, cash:981241, stock:0, ratio:'5.099％', note:'台灣武漢肺炎/股市熱,多扣健保費21,151元(2.11%)，繳完第四張年金,領三張年金(60萬)，全家250元'},
+  {minguo:111, year:2022, age:48, shares:196.588, cash:991440, stock:0, ratio:'5.152％', note:'2/24烏俄戰爭/高通膨,多扣健保費21,371元(2.11%)，7/20基金會上班，全家250元'},
+  {minguo:112, year:2023, age:49, shares:196.588, cash:897723, stock:0, ratio:'4.665％', note:'5/31房貸增至1276萬,6月metoo運動,大陸經濟不佳,10/7以巴戰爭,多扣健保費19,350元(2.11%),普發6千元，全家250元'},
+  {minguo:113, year:2024, age:50, shares:196.588, cash:904457, stock:0, ratio:'4.700％', note:'1/13總統大選,4/3花蓮7.2大地震+佼事件,多扣19,496健保費(2.11%),台股上2萬點,3颱侵台,12/17退回80萬，全家250元'},
+  {minguo:114, year:2025, age:51, shares:196.588, cash:904457, stock:0, ratio:'4.700％', note:'尹錫悅去年底發佈戒嚴,4/4被免職.1/20川普就職,2/13台中新光三越氣爆,328緬甸8.2地震,4/2川普宣佈關稅,6/13以伊戰爭,726大罷免失敗,11月普發現金1萬元,AI投資熱潮,11月左右我也開始愛用AI(Gemini),3月開始運動至年底瘦了近15公斤(約79.8-65),多扣19,496健保費(2.11%),台股年初約2.3萬/年底近2.9萬收盤,台積電1550元,7月開始投資ETF，小7大美式'},
+  {minguo:115, year:2026, age:52, shares:196.588, cash:904457, stock:0, ratio:'4.700％', note:'台灣關稅15%,農曆年後台積電1900元、台股33773點'}
+];
+
+/* ---- 基金會薪資明細(一)+(二) 1110720到職，依年度彙總 ---- */
+/* months: 1~12月「實領」金額(null=尚無資料)；bonus為年終；giftNote為禮品/贈禮備註彙整 */
+const FOUNDATION_SALARY = [
+  {minguoYear:'111壬寅年', year:2022, age:48, startMonth:7,
+    months:[null,null,null,null,null,null,11905,38052,33052,36456,35015,70602],
+    total:225082, note:'7/20基金會上班，他們5/1加薪第1次(+5%)；年終一個月/年所得實領225,082元(半年)/月平均37,514元；上班天數71天'},
+  {minguoYear:'112癸卯年', year:2023, age:49, startMonth:1,
+    months:[39565,34565,34565,34978,39565,34565,34565,37372,37372,42372,37372,37372],
+    total:444228, note:'8月起加薪8%(38,880/月)；年終2個月；年所得實領444,228元(全年)/月平均43,499元；上班天數142天'},
+  {minguoYear:'113甲辰年', year:2024, age:50, startMonth:1,
+    months:[120056,37296,37296,37296,42296,42296,37296,null,null,null,null,null],
+    total:null, note:'1/24全聯禮卷1萬元，3/20請客送球鞋，5/21及9月皆有Sogo禮卷，6/5木蘭居聚餐'},
+  {minguoYear:'114乙巳年', year:2025, age:51, startMonth:1,
+    months:[42256,37256,37256,37256,42256,37256,37256,37256,37256,42256,37256,42256],
+    total:467072, note:'1/8 1萬全聯禮卷，5/6及9/23皆有3000元Sogo禮卷，9/2王小姐送月餅1盒，一箱柚子，12/30 1萬全聯禮卷+LG清潔用品禮盒；7/1、8(二)得新冠請假2天；上班天數N-145天/J-146天(一起上班天)'},
+  {minguoYear:'115丙午年', year:2026, age:52, startMonth:1,
+    months:[115016,39123,39123,44123,39123,39123,39123,39123,39123,44123,39123,44123],
+    total:560369, note:'全部加薪5%；1/28、5/26、9月皆有3000元Sogo禮卷；年終2個月；總扣繳金額20,335元；1/28我提早半小時下班去做乳攝，5/5去琬爸告別式'},
+  {minguoYear:'116丁未年', year:2027, age:53, startMonth:1, months:[null,null,null,null,null,null,null,null,null,null,null,null], total:0, note:''}
+];
+
+/* ---- 所得稅申報明細 (95年度~114年度，含媽媽/爸爸合併列) ---- */
+/* type:'self'=本人, 'mom'=媽媽, 'dad'=爸爸 */
+const TAX_DATA = [
+  {taxYear:95, minguo:96, year:2007, age:33, type:'self', pay:null, refund:76549, income:1249671, withheld:null, salaryDeduct:null, deductTotal:'?', taxInfo:'約12%', note:'報稅資料未存檔,只有退稅通知單'},
+  {taxYear:95, minguo:96, year:2007, age:33, type:'mom',  pay:null, refund:12061, income:469949, withheld:null, salaryDeduct:null, deductTotal:null, taxInfo:null, note:'報稅資料未存檔,只有退稅通知單'},
+  {taxYear:96, minguo:97, year:2008, age:34, type:'self', pay:34386, refund:null, income:3220158, withheld:587687, salaryDeduct:78000, deductTotal:46000, taxInfo:'30% / 622,073', note:'年所得約3,864,877元'},
+  {taxYear:96, minguo:97, year:2008, age:34, type:'mom',  pay:null, refund:27794, income:393320, withheld:18412, salaryDeduct:78000, deductTotal:46000, taxInfo:'媽媽--6% / 11,539', note:''},
+  {taxYear:96, minguo:97, year:2008, age:34, type:'dad',  pay:null, refund:22117, income:251399, withheld:25140, salaryDeduct:78000, deductTotal:46000, taxInfo:'爸爸--6% / 3,023', note:''},
+  {taxYear:97, minguo:98, year:2009, age:35, type:'self', pay:null, refund:56657, income:3226413, withheld:614242, salaryDeduct:100000, deductTotal:73000, taxInfo:'30% / 516,603', note:'98年底被查稅,補繳稅加扣173利息/年所得約3,452,198元/房貸650萬/9808開始繳房貸'},
+  {taxYear:97, minguo:98, year:2009, age:35, type:'mom',  pay:null, refund:18412, income:225785, withheld:18412, salaryDeduct:100000, deductTotal:73000, taxInfo:'媽媽--6% / 0', note:''},
+  {taxYear:98, minguo:99, year:2010, age:36, type:'self', pay:null, refund:150587, income:2205744, withheld:88227, salaryDeduct:100000, deductTotal:null, taxInfo:'約20%', note:'報稅資料未存檔,只有退稅通知單'},
+  {taxYear:98, minguo:99, year:2010, age:36, type:'mom',  pay:null, refund:9653, income:96532, withheld:9653, salaryDeduct:96532, deductTotal:76000, taxInfo:'媽媽--6% / 0', note:'報稅資料不完整,有退稅通知單'},
+  {taxYear:99, minguo:100, year:2011, age:37, type:'self', pay:null, refund:247519, income:1600378, withheld:355350, salaryDeduct:104000, deductTotal:166220, taxInfo:'20% / 107,831', note:'9902離開永X'},
+  {taxYear:99, minguo:100, year:2011, age:37, type:'mom',  pay:null, refund:170, income:2828, withheld:9653, salaryDeduct:104000, deductTotal:76000, taxInfo:'媽媽--6% / 0', note:''},
+  {taxYear:100, minguo:101, year:2012, age:38, type:'self', pay:null, refund:107130, income:1018090, withheld:141107, salaryDeduct:104000, deductTotal:175276, taxInfo:'12% / 33,977', note:''},
+  {taxYear:101, minguo:102, year:2013, age:39, type:'self', pay:null, refund:108110, income:1067134, withheld:152327, salaryDeduct:104000, deductTotal:138988, taxInfo:'12% / 44,217', note:'107年初查稅,追學思所得+房貸利息 / 102年房屋增貸80萬(土銀)'},
+  {taxYear:102, minguo:103, year:2014, age:40, type:'self', pay:null, refund:102734, income:1538335, withheld:212041, salaryDeduct:108000, deductTotal:148797, taxInfo:'12% / 109,307', note:'107年初查稅,追學思所得+房貸利息'},
+  {taxYear:103, minguo:104, year:2015, age:41, type:'self', pay:null, refund:107324, income:1120128, withheld:168368, salaryDeduct:80500, deductTotal:142593, taxInfo:'12% / 61,044', note:'107年初查稅,追房貸利息'},
+  {taxYear:104, minguo:105, year:2016, age:42, type:'self', pay:null, refund:43728, income:868627, withheld:81660, salaryDeduct:0, deductTotal:164192, taxInfo:'12% / 37,932', note:'107年初查稅,追房貸利息'},
+  {taxYear:105, minguo:106, year:2017, age:43, type:'self', pay:null, refund:47790, income:846591, withheld:78785, salaryDeduct:0, deductTotal:199965, taxInfo:'12% / 30,995', note:'107年初查稅,追房貸利息/106年4月房貸轉至星展貸1,132萬'},
+  {taxYear:106, minguo:107, year:2018, age:44, type:'self', pay:null, refund:52451, income:958343, withheld:89325, salaryDeduct:0, deductTotal:248058, taxInfo:'12% / 36,874', note:'107年起沒有鑫X的股利所得'},
+  {taxYear:107, minguo:108, year:2019, age:45, type:'self', pay:null, refund:43090, income:960924, withheld:81828, salaryDeduct:0, deductTotal:235103, taxInfo:'12% / 38,738', note:'108年起沒有鑫X的租賃所得'},
+  {taxYear:108, minguo:109, year:2020, age:46, type:'self', pay:null, refund:45941, income:969306, withheld:84458, salaryDeduct:0, deductTotal:245325, taxInfo:'12% / 38,517', note:''},
+  {taxYear:109, minguo:110, year:2021, age:47, type:'self', pay:3185, refund:null, income:1362177, withheld:86170, salaryDeduct:1000, deductTotal:214549, taxInfo:'12% / 89,355', note:''},
+  {taxYear:110, minguo:111, year:2022, age:48, type:'self', pay:null, refund:33567, income:1041042, withheld:84830, salaryDeduct:0, deductTotal:210844, taxInfo:'12% / 51,263', note:'7/29收到退稅33,567元 / 7/20基金會上班'},
+  {taxYear:111, minguo:112, year:2023, age:49, type:'self', pay:null, refund:34944, income:1189457, withheld:82875, salaryDeduct:160411, deductTotal:210949, taxInfo:'12% / 47,931', note:'112年5/31房貸增貸至1,276萬 /7/31收到退稅34,131元(少813元)'},
+  {taxYear:112, minguo:113, year:2024, age:50, type:'self', pay:null, refund:16600, income:1425553, withheld:80890, salaryDeduct:207000, deductTotal:264130, taxInfo:'12% / 64,290', note:'7/31收到退稅16,600元(42萬所得以下免稅)'},
+  {taxYear:113, minguo:114, year:2025, age:51, type:'self', pay:null, refund:22021, income:1503060, withheld:80255, salaryDeduct:218000, deductTotal:355166, taxInfo:'12% / 58,234', note:'7/31收到退稅22,021元'},
+  {taxYear:114, minguo:115, year:2026, age:52, type:'self', pay:null, refund:19214, income:1498083, withheld:80013, salaryDeduct:218000, deductTotal:329353, taxInfo:'12% / 60,799', note:'5/21上網申報'}
+];
+
+/* ---- 房貸&保貸餘額明細 ---- */
+/* balanceRows: 年初/年中餘額快照；mortgageRows: 112年起增貸後的還款預估 */
+const LOAN_BALANCE_ROWS = [
+  {minguo:'111年', year:2022, age:48,
+    jan1:{mortgage:9017329, guotai:3555147, yuanhong:4094316},
+    jul1:{mortgage:8800327, guotai:3213905, yuanhong:4185288},
+    nextJan1Total:16666792, nextJan1Decrease:null,
+    jul1Total:16199520, jul1Decrease:467272,
+    note:'7/20開始上班/全年減少685,398'},
+  {minguo:'112年', year:2023, age:49,
+    jan1:{mortgage:8589732, guotai:3112889, yuanhong:4278773},
+    jul1:{mortgage:null, guotai:0, yuanhong:null},
+    nextJan1Total:null, nextJan1Decrease:null,
+    jul1Total:15355538, jul1Decrease:null,
+    note:'5/31房屋增貸433.5萬/26年/1.99%/月繳52,418元'},
+  {minguo:'113年', year:2024, age:50,
+    jan1:{mortgage:12544395, guotai:null, yuanhong:2346203},
+    jul1:{mortgage:12356937, guotai:null, yuanhong:1770884},
+    nextJan1Total:14890598, nextJan1Decrease:464940,
+    jul1Total:14127821, jul1Decrease:762777,
+    note:'4/3花蓮7.2大地震,6月初股市上2萬點,7/14川普被槍殺,11月川普當選,12/17段老師退合購房屋80萬+12/24、27、31還保貸78+58.6=共136.6萬'},
+  {minguo:'114年', year:2025, age:51,
+    jan1:{mortgage:12171820, guotai:null, yuanhong:667892},
+    jul1:{mortgage:11982364, guotai:null, yuanhong:18002},
+    nextJan1Total:12839712, nextJan1Decrease:1288109,
+    jul1Total:12000366, jul1Decrease:839346,
+    note:'5/29保貸還清！7/24開始定期定額ETF 6,000元x2支=1.2萬/月'},
+  {minguo:'115年', year:2026, age:52,
+    jan1:{mortgage:11792991, guotai:null, yuanhong:0},
+    jul1:{mortgage:null, guotai:null, yuanhong:null},
+    nextJan1Total:11792991, nextJan1Decrease:207375,
+    jul1Total:null, jul1Decrease:null,
+    note:'1/26開始定期投資美國ETF VOO約10萬,1月加碼投資006208 / 2月哥借我100萬還房貸，5/21查--剩10,712,117元'}
+];
+/* 房貸還款預估表(112年增貸後) */
+const MORTGAGE_PLAN_ROWS = [
+  {minguo:'112年', year:2023, age:49, period:'11206-11212', h1:31549,   h2:187605, annual:219154, cumRepay:219154,  estBalance:12540846, actRepay:215605, actBalance:12544395, diff:3549,   note:''},
+  {minguo:'113年', year:2024, age:50, period:'11301-11312', h1:191548,  h2:191426, annual:382974, cumRepay:602128,  estBalance:12157872, actRepay:372575, actBalance:12171820, diff:13948,  note:''},
+  {minguo:'114年', year:2025, age:51, period:'11401-11412', h1:194680,  h2:195313, annual:389993, cumRepay:992121,  estBalance:11767879, actRepay:378829, actBalance:11792991, diff:25112,  note:'運動瘦身/複習斗數+研究ETF、股票/下半年定期定額ETF'},
+  {minguo:'115年', year:2026, age:52, period:'11501-11512', h1:199208,  h2:199288, annual:398496, cumRepay:1390617, estBalance:11369383, actRepay:null,   actBalance:null,      diff:null,   note:'哥的100萬/開始重訓/複習斗數+看房/定期定額ETF、投資股票，5/21查--剩10,712,117元'},
+  {minguo:'116年', year:2027, age:53, period:'11601-11612', h1:203155,  h2:203342, annual:406497, cumRepay:1797114, estBalance:10962886, actRepay:null,   actBalance:null,      diff:null,   note:'複習斗數+看房/估價賣房+年底上斗數精英班/定期定額ETF'},
+  {minguo:'117年', year:2028, age:54, period:'11701-11712', h1:207184,  h2:207478, annual:414662, cumRepay:2211776, estBalance:10548224, actRepay:null,   actBalance:null,      diff:null,   note:'認真看房/估價賣房/定期定額ETF'},
+  {minguo:'118年', year:2029, age:55, period:'11801-11812', h1:210718,  h2:211691, annual:422409, cumRepay:2634185, estBalance:10125815, actRepay:null,   actBalance:null,      diff:null,   note:'買房+買車+學英文/定期定額ETF'},
+  {minguo:'119年', year:2030, age:56, period:'11901-11912', h1:215478,  h2:215995, annual:431473, cumRepay:3065658, estBalance:9694342,  actRepay:null,   actBalance:null,      diff:null,   note:'賣房+學英文/定期定額ETF/北環線捷運完工'},
+  {minguo:'120年', year:2031, age:57, period:'12001-12012', h1:null,    h2:null,   annual:null,   cumRepay:null,    estBalance:null,     actRepay:null,   actBalance:null,      diff:null,   note:'約3月底離職'}
+];
+function num(v){
+  if(v===null||v===undefined) return '—';
+  if(typeof v==='string') return v;
+  return Math.round(v).toLocaleString('zh-Hant');
+}
+const CUR_YEAR = 2026; // 民國115年
+const NOTE_KEY = 'incomeDividendNoteOverride_v1';
+function loadNoteOverrides(){
+  try{ return JSON.parse(localStorage.getItem(NOTE_KEY)) || {}; }catch(e){ return {}; }
+}
+function saveNoteOverride(year, text){
+  const all = loadNoteOverrides();
+  if(text==='') delete all[year]; else all[year] = text;
+  localStorage.setItem(NOTE_KEY, JSON.stringify(all));
+}
+function getDividendNote(r){
+  const overrides = loadNoteOverrides();
+  return overrides.hasOwnProperty(r.year) ? overrides[r.year] : r.note;
+}
+
+const FOUNDATION_NOTE_KEY = 'incomeFoundationNoteOverride_v1';
+function loadFoundationNoteOverrides(){
+  try{ return JSON.parse(localStorage.getItem(FOUNDATION_NOTE_KEY)) || {}; }catch(e){ return {}; }
+}
+function saveFoundationNoteOverride(year, text){
+  const all = loadFoundationNoteOverrides();
+  if(text==='') delete all[year]; else all[year] = text;
+  localStorage.setItem(FOUNDATION_NOTE_KEY, JSON.stringify(all));
+}
+function getFoundationNote(r){
+  const overrides = loadFoundationNoteOverrides();
+  return overrides.hasOwnProperty(r.year) ? overrides[r.year] : r.note;
+}
+function bindFoundationNoteEdit(){
+  document.querySelectorAll('#mainView .note-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.note-row');
+      const year = btn.dataset.year;
+      const current = getFoundationNote(FOUNDATION_SALARY.find(r=>r.year==year)) || '';
+      row.querySelector('.note-body').innerHTML =
+        `<textarea class="note-edit-area" rows="3">${current}</textarea>`
+        + `<div class="note-edit-actions">`
+        + `<button class="note-save-btn" data-year="${year}">儲存</button>`
+        + `<button class="note-cancel-btn">取消</button>`
+        + `</div>`;
+      row.querySelector('.note-save-btn').addEventListener('click', ()=>{
+        const val = row.querySelector('.note-edit-area').value.trim();
+        saveFoundationNoteOverride(year, val);
+        renderFoundation();
+      });
+      row.querySelector('.note-cancel-btn').addEventListener('click', renderFoundation);
+    });
+  });
+}
+
+/* ===================== 視圖切換 ===================== */
+const VIEWS = [
+  {key:'dividend',   label:'股利'},
+  {key:'foundation', label:'基金會薪資'},
+  {key:'tax',        label:'所得稅'},
+  {key:'loan',       label:'房貸保貸'}
+];
+let currentView = 'dividend';
+
+function renderTabs(){
+  const wrap = document.getElementById('viewTabs');
+  wrap.innerHTML = VIEWS.map(v=>
+    `<button class="ptab${v.key===currentView?' active':''}" data-key="${v.key}">${v.label}</button>`
+  ).join('');
+  wrap.querySelectorAll('.ptab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ currentView = btn.dataset.key; render(); });
+  });
+}
+
+/* ---- 股利 視圖 ---- */
+function renderDividend(){
+  document.getElementById('headerSub').textContent = '永x 股票股利明細';
+  document.getElementById('viewDesc').textContent = '每年7月領取現金股利，依持股張數與分配比例計算';
+
+  const latest = DIVIDEND_DATA[DIVIDEND_DATA.length-1];
+  const totalCash = DIVIDEND_DATA.reduce((s,r)=> s + (typeof r.cash==='number'?r.cash:0), 0);
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="scard">
+      <p class="lab">累積現金股利(91-115年)</p>
+      <p class="val">NT$ ${num(totalCash)}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">${latest.minguo}年現金股利</p>
+      <p class="val">NT$ ${num(latest.cash)}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">持股張數</p>
+      <p class="val">${latest.shares} 張</p>
+    </div>
+  `;
+
+  let html = '<div class="table-wrap"><table><thead><tr>'
+    + '<th>年度</th><th>年齡</th><th>張數</th><th>現金股利</th><th>股票股利</th><th>分配比例</th>'
+    + '</tr></thead><tbody>';
+
+  DIVIDEND_DATA.slice().reverse().forEach(r=>{
+    const curCls = r.year===CUR_YEAR ? ' class="cur-year"' : '';
+    html += `<tr${curCls}>`
+      + `<td>${r.minguo}年</td>`
+      + `<td>${r.age}</td>`
+      + `<td>${r.shares}</td>`
+      + `<td class="amt-pos">${num(r.cash)}</td>`
+      + `<td>${r.stock===0?'—':r.stock}</td>`
+      + `<td>${r.ratio}</td>`
+      + `</tr>`;
+  });
+
+  html += '</tbody></table></div>';
+
+  html += '<div class="note-list">';
+  DIVIDEND_DATA.slice().reverse().forEach(r=>{
+    const noteText = getDividendNote(r);
+    html += `<div class="note-row" data-year="${r.year}">`
+      + `<div class="note-year">${r.minguo}年</div>`
+      + `<div class="note-body"><span class="note-text">${noteText || '（無備註，點擊新增）'}</span>`
+      + `<button class="note-edit-btn" data-year="${r.year}">✏️</button></div>`
+      + `</div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('mainView').innerHTML = html;
+  bindNoteEdit();
+}
+
+function bindNoteEdit(){
+  document.querySelectorAll('.note-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.note-row');
+      const year = btn.dataset.year;
+      const span = row.querySelector('.note-text');
+      const current = getDividendNote(DIVIDEND_DATA.find(r=>r.year==year)) || '';
+      row.querySelector('.note-body').innerHTML =
+        `<textarea class="note-edit-area" rows="3">${current}</textarea>`
+        + `<div class="note-edit-actions">`
+        + `<button class="note-save-btn" data-year="${year}">儲存</button>`
+        + `<button class="note-cancel-btn">取消</button>`
+        + `</div>`;
+      row.querySelector('.note-save-btn').addEventListener('click', ()=>{
+        const val = row.querySelector('.note-edit-area').value.trim();
+        saveNoteOverride(year, val);
+        renderDividend();
+      });
+      row.querySelector('.note-cancel-btn').addEventListener('click', renderDividend);
+    });
+  });
+}
+
+/* ---- 基金會薪資 視圖 ---- */
+function renderFoundation(){
+  document.getElementById('headerSub').textContent = '基金會薪資明細(110720到職)';
+  document.getElementById('viewDesc').textContent = '每月實領金額，12月含年終獎金';
+
+  const latestWithTotal = FOUNDATION_SALARY.filter(r=> r.total!==null && r.total>0).slice(-1)[0];
+  const cur = FOUNDATION_SALARY.find(r=> r.year===CUR_YEAR);
+  const curMonth = new Date().getMonth()+1;
+  let curMonthVal = null;
+  if(cur) curMonthVal = cur.months[curMonth-1];
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="scard">
+      <p class="lab">${latestWithTotal ? latestWithTotal.minguoYear+' 年所得實領' : '年所得實領'}</p>
+      <p class="val">NT$ ${latestWithTotal? num(latestWithTotal.total) : '—'}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">本月實領</p>
+      <p class="val">NT$ ${curMonthVal!==null? num(curMonthVal) : '—'}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">目前年齡</p>
+      <p class="val">${cur? cur.age+' 歲' : '—'}</p>
+    </div>
+  `;
+
+  let html = '<div class="table-wrap"><table><thead><tr><th>月份</th>';
+  FOUNDATION_SALARY.forEach(r=> html += `<th>${r.minguoYear.slice(0,3)}年</th>`);
+  html += '</tr></thead><tbody>';
+
+  for(let m=1; m<=12; m++){
+    html += `<tr><td>${m}月</td>`;
+    FOUNDATION_SALARY.forEach(r=>{
+      const v = r.months[m-1];
+      const isCur = (r.year===CUR_YEAR && m===curMonth) ? ' class="cur-year"' : '';
+      html += `<td${isCur}>${v!==null? num(v) : '—'}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  html += '<tr style="font-weight:600;"><td>合計</td>';
+  FOUNDATION_SALARY.forEach(r=>{
+    html += `<td>${r.total!==null? num(r.total) : '—'}</td>`;
+  });
+  html += '</tr></tbody></table></div>';
+
+  html += '<div class="note-list">';
+  FOUNDATION_SALARY.forEach(r=>{
+    const noteText = getFoundationNote(r);
+    html += `<div class="note-row" data-year="${r.year}">`
+      + `<div class="note-year">${r.minguoYear}</div>`
+      + `<div class="note-body"><span class="note-text">${noteText || '（無備註，點擊新增）'}</span>`
+      + `<button class="note-edit-btn" data-year="${r.year}">✏️</button></div>`
+      + `</div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('mainView').innerHTML = html;
+  bindFoundationNoteEdit();
+}
+
+/* ===================== 主渲染 ===================== */
+function render(){
+  renderTabs();
+  if(currentView==='dividend') renderDividend();
+  else if(currentView==='foundation') renderFoundation();
+  else if(currentView==='tax') renderTax();
+  else renderLoan();
+}
+const TAX_NOTE_KEY = 'incomeTaxNoteOverride_v1';
+function loadTaxNoteOverrides(){ try{ return JSON.parse(localStorage.getItem(TAX_NOTE_KEY))||{}; }catch(e){ return {}; } }
+function saveTaxNoteOverride(taxYear, text){ const a=loadTaxNoteOverrides(); if(text==='') delete a[taxYear]; else a[taxYear]=text; localStorage.setItem(TAX_NOTE_KEY, JSON.stringify(a)); }
+function getTaxNote(r){ const a=loadTaxNoteOverrides(); return a.hasOwnProperty(r.taxYear)?a[r.taxYear]:r.note; }
+
+function renderTax(){
+  document.getElementById('headerSub').textContent = '申報綜所稅之各年度繳納明細';
+  document.getElementById('viewDesc').textContent = '每年5月申報，7~8月退稅或補繳；僅列本人申報列';
+
+  // 本人歷年合計
+  const selfRows = TAX_DATA.filter(r=>r.type==='self');
+  const totalRefund = selfRows.reduce((s,r)=> s+(r.refund||0), 0);
+  const totalPay    = selfRows.reduce((s,r)=> s+(r.pay||0), 0);
+  const latestSelf  = selfRows[selfRows.length-1];
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="scard">
+      <p class="lab">歷年退稅合計(95-114年)</p>
+      <p class="val" style="color:var(--green)">NT$ ${num(totalRefund)}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">${latestSelf.taxYear}年度 所得總額</p>
+      <p class="val">NT$ ${num(latestSelf.income)}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">${latestSelf.taxYear}年度 退稅/補繳</p>
+      <p class="val" style="color:${latestSelf.refund?'var(--green)':'var(--red)'}">
+        ${latestSelf.refund ? '退 NT$ '+num(latestSelf.refund) : '補 NT$ '+num(latestSelf.pay)}
+      </p>
+    </div>
+  `;
+
+  // 主表：本人列
+  let html = '<div class="table-wrap"><table><thead><tr>'
+    + '<th>稅務年度</th><th>年齡</th><th>所得總額</th><th>退稅</th><th>補繳</th><th>扣繳稅額</th><th>薪資扣除</th><th>稅率/應納</th>'
+    + '</tr></thead><tbody>';
+
+  selfRows.slice().reverse().forEach(r=>{
+    const curCls = r.year===CUR_YEAR ? ' class="cur-year"' : '';
+    // 找同年媽媽/爸爸
+    const extra = TAX_DATA.filter(x=> x.taxYear===r.taxYear && x.type!=='self');
+    html += `<tr${curCls}>`
+      + `<td>${r.taxYear}年度<br><span style="font-size:12px;color:var(--sub)">(民${r.minguo}申報)</span></td>`
+      + `<td>${r.age}</td>`
+      + `<td>${num(r.income)}</td>`
+      + `<td class="amt-pos">${r.refund ? num(r.refund) : '—'}</td>`
+      + `<td style="color:var(--red)">${r.pay ? num(r.pay) : '—'}</td>`
+      + `<td>${num(r.withheld)}</td>`
+      + `<td>${num(r.salaryDeduct)}</td>`
+      + `<td>${r.taxInfo||'—'}</td>`
+      + `</tr>`;
+    if(extra.length){
+      extra.forEach(ex=>{
+        html += `<tr style="background:#F5F5F0;font-size:13px;color:var(--sub);">`
+          + `<td style="padding-left:20px;">${ex.type==='mom'?'　媽媽':'　爸爸'}</td>`
+          + `<td>—</td>`
+          + `<td>${num(ex.income)}</td>`
+          + `<td class="amt-pos">${ex.refund ? num(ex.refund) : '—'}</td>`
+          + `<td>—</td>`
+          + `<td>${num(ex.withheld)}</td>`
+          + `<td>—</td>`
+          + `<td>${ex.taxInfo||'—'}</td>`
+          + `</tr>`;
+      });
+    }
+  });
+  html += '</tbody></table></div>';
+
+  // 大事記備註卡片(僅本人列)
+  html += '<div class="note-list">';
+  selfRows.slice().reverse().forEach(r=>{
+    const noteText = getTaxNote(r);
+    html += `<div class="note-row" data-taxyear="${r.taxYear}">`
+      + `<div class="note-year">${r.taxYear}年度</div>`
+      + `<div class="note-body"><span class="note-text">${noteText || '（無備註，點擊新增）'}</span>`
+      + `<button class="note-edit-btn tax-note-btn" data-taxyear="${r.taxYear}">✏️</button></div>`
+      + `</div>`;
+  });
+  html += '</div>';
+
+  document.getElementById('mainView').innerHTML = html;
+  document.querySelectorAll('.tax-note-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.note-row');
+      const ty = btn.dataset.taxyear;
+      const current = getTaxNote(TAX_DATA.find(r=>r.taxYear==ty && r.type==='self')) || '';
+      row.querySelector('.note-body').innerHTML =
+        `<textarea class="note-edit-area" rows="3">${current}</textarea>`
+        + `<div class="note-edit-actions">`
+        + `<button class="note-save-btn" data-taxyear="${ty}">儲存</button>`
+        + `<button class="note-cancel-btn">取消</button></div>`;
+      row.querySelector('.note-save-btn').addEventListener('click', ()=>{
+        saveTaxNoteOverride(ty, row.querySelector('.note-edit-area').value.trim());
+        renderTax();
+      });
+      row.querySelector('.note-cancel-btn').addEventListener('click', renderTax);
+    });
+  });
+}
+
+/* ---- 房貸保貸 視圖 ---- */
+const LOAN_NOTE_KEY = 'incomeLoanNoteOverride_v1';
+function loadLoanNoteOverrides(){ try{ return JSON.parse(localStorage.getItem(LOAN_NOTE_KEY))||{}; }catch(e){ return {}; } }
+function saveLoanNoteOverride(year, text){ const a=loadLoanNoteOverrides(); if(text==='') delete a[year]; else a[year]=text; localStorage.setItem(LOAN_NOTE_KEY, JSON.stringify(a)); }
+function getLoanNote(r){ const a=loadLoanNoteOverrides(); return a.hasOwnProperty(r.year)?a[r.year]:r.note; }
+
+function renderLoan(){
+  document.getElementById('headerSub').textContent = '年初/年中之房貸&保貸餘額明細';
+  document.getElementById('viewDesc').textContent = '上半：房貸+保貸餘額快照；下半：房貸還款預估(112年增貸後)';
+
+  const cur = LOAN_BALANCE_ROWS.find(r=>r.year===CUR_YEAR);
+  const curMortgagePlan = MORTGAGE_PLAN_ROWS.find(r=>r.year===CUR_YEAR);
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="scard">
+      <p class="lab">${cur ? cur.minguo+'年初 房貸餘額' : '目前房貸餘額'}</p>
+      <p class="val">NT$ ${cur ? num(cur.jan1.mortgage) : '—'}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">年初合計(房貸+保貸)</p>
+      <p class="val">NT$ ${cur ? num(cur.nextJan1Total) : '—'}</p>
+    </div>
+    <div class="scard">
+      <p class="lab">較前期減少</p>
+      <p class="val" style="color:var(--green)">NT$ ${cur ? num(cur.nextJan1Decrease) : '—'}</p>
+    </div>
+  `;
+
+  // 上半：餘額快照表
+  let html = '<p style="font-weight:600;font-size:15px;margin:0 0 6px;">▌ 房貸&保貸餘額快照</p>';
+  html += '<div class="table-wrap"><table><thead><tr>'
+    + '<th>年度</th><th>年齡</th><th>時間點</th><th>房貸(1.9%)</th><th>國泰保貸(6.9%)</th><th>遠雄保貸(4.5%)</th><th>合計</th>'
+    + '</tr></thead><tbody>';
+
+  LOAN_BALANCE_ROWS.slice().reverse().forEach(r=>{
+    const curCls = r.year===CUR_YEAR ? ' class="cur-year"' : '';
+    // 年初列
+    html += `<tr${curCls}>`
+      + `<td rowspan="2">${r.minguo}<br><span style="font-size:12px;color:var(--sub)">${r.age}歲</span></td>`
+      + `<td style="display:none"></td>`
+      + `<td style="font-size:13px;color:var(--sub)">年初1/1</td>`
+      + `<td>${r.jan1.mortgage!=null? num(r.jan1.mortgage):'—'}</td>`
+      + `<td>${r.jan1.guotai!=null? num(r.jan1.guotai):'—'}</td>`
+      + `<td>${r.jan1.yuanhong!=null? num(r.jan1.yuanhong):'—'}</td>`
+      + `<td>${r.nextJan1Total? num(r.nextJan1Total)+'<br><span style="font-size:12px;color:var(--green)">↓'+num(r.nextJan1Decrease)+'</span>':'—'}</td>`
+      + `</tr>`;
+    // 年中列
+    html += `<tr style="background:#FAFAF7;">`
+      + `<td style="font-size:13px;color:var(--sub)">年中7/1</td>`
+      + `<td>${r.jul1.mortgage!=null? num(r.jul1.mortgage):'—'}</td>`
+      + `<td>${r.jul1.guotai!=null? num(r.jul1.guotai):'—'}</td>`
+      + `<td>${r.jul1.yuanhong!=null? num(r.jul1.yuanhong):'—'}</td>`
+      + `<td>${r.jul1Total? num(r.jul1Total)+(r.jul1Decrease?'<br><span style="font-size:12px;color:var(--green)">↓'+num(r.jul1Decrease)+'</span>':''):'—'}</td>`
+      + `</tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  // 備註卡片
+  html += '<div class="note-list" style="margin-bottom:20px;">';
+  LOAN_BALANCE_ROWS.slice().reverse().forEach(r=>{
+    const noteText = getLoanNote(r);
+    html += `<div class="note-row" data-year="${r.year}">`
+      + `<div class="note-year">${r.minguo}</div>`
+      + `<div class="note-body"><span class="note-text">${noteText || '（無備註，點擊新增）'}</span>`
+      + `<button class="note-edit-btn loan-note-btn balance-note" data-year="${r.year}">✏️</button></div>`
+      + `</div>`;
+  });
+  html += '</div>';
+
+  // 下半：還款預估表
+  html += '<p style="font-weight:600;font-size:15px;margin:0 0 6px;">▌ 房貸還款預估(112年增貸後)</p>';
+  html += '<div class="table-wrap"><table><thead><tr>'
+    + '<th>年度</th><th>還款期間</th><th>上半年還本</th><th>下半年還本</th><th>年度還本</th><th>累積還款</th><th>預估餘額</th><th>實際餘額</th>'
+    + '</tr></thead><tbody>';
+
+  MORTGAGE_PLAN_ROWS.forEach(r=>{
+    const curCls = r.year===CUR_YEAR ? ' class="cur-year"' : '';
+    html += `<tr${curCls}>`
+      + `<td>${r.minguo}</td>`
+      + `<td style="font-size:13px">${r.period}</td>`
+      + `<td>${num(r.h1)}</td>`
+      + `<td>${num(r.h2)}</td>`
+      + `<td>${num(r.annual)}</td>`
+      + `<td>${num(r.cumRepay)}</td>`
+      + `<td>${num(r.estBalance)}</td>`
+      + `<td class="${r.actBalance?'amt-pos':''}">${num(r.actBalance)}</td>`
+      + `</tr>`;
+    if(r.note){
+      html += `<tr style="background:#FAFAF7;"><td colspan="8" style="font-size:13px;color:var(--sub);white-space:normal;">${r.note}</td></tr>`;
+    }
+  });
+  html += '</tbody></table></div>';
+
+  document.getElementById('mainView').innerHTML = html;
+
+  // 綁定餘額備註編輯
+  document.querySelectorAll('.balance-note').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.note-row');
+      const yr = btn.dataset.year;
+      const current = getLoanNote(LOAN_BALANCE_ROWS.find(r=>r.year==yr)) || '';
+      row.querySelector('.note-body').innerHTML =
+        `<textarea class="note-edit-area" rows="3">${current}</textarea>`
+        + `<div class="note-edit-actions">`
+        + `<button class="note-save-btn" data-year="${yr}">儲存</button>`
+        + `<button class="note-cancel-btn">取消</button></div>`;
+      row.querySelector('.note-save-btn').addEventListener('click', ()=>{
+        saveLoanNoteOverride(yr, row.querySelector('.note-edit-area').value.trim());
+        renderLoan();
+      });
+      row.querySelector('.note-cancel-btn').addEventListener('click', renderLoan);
+    });
+  });
+}
+
+/* ===================== 全域搜尋引擎 ===================== */
+function hl(text, kw){
+  if(!kw) return text;
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return String(text).replace(new RegExp(escaped,'gi'), m=>`<mark>${m}</mark>`);
+}
+
+function buildSearchIndex(){
+  const items = [];
+
+  // ---- 股利 ----
+  DIVIDEND_DATA.forEach(r=>{
+    const noteText = getDividendNote(r);
+    items.push({
+      cat:'dividend', catLabel:'股利',
+      year: r.year, yearLabel:`${r.minguo}年`,
+      amtLabel: r.cash ? `NT$ ${num(r.cash)}` : null,
+      fields: [String(r.minguo), String(r.age), String(r.shares), String(r.cash), String(r.ratio), noteText||''].join(' '),
+      note: noteText,
+      summary: `現金股利 ${num(r.cash)} 元，持股 ${r.shares} 張，分配比例 ${r.ratio}`
+    });
+  });
+
+  // ---- 基金會薪資 ----
+  FOUNDATION_SALARY.forEach(r=>{
+    const noteText = getFoundationNote(r);
+    const monthsStr = r.months.map((v,i)=>v!=null?`${i+1}月${num(v)}`:'').filter(Boolean).join(' ');
+    items.push({
+      cat:'foundation', catLabel:'基金會薪資',
+      year: r.year, yearLabel: r.minguoYear,
+      amtLabel: r.total ? `NT$ ${num(r.total)}` : null,
+      fields: [r.minguoYear, String(r.age), String(r.total||''), monthsStr, noteText||''].join(' '),
+      note: noteText,
+      summary: `年所得${r.total?num(r.total)+'元':'(未完整)'}，${r.age}歲`
+    });
+  });
+
+  // ---- 所得稅 ----
+  TAX_DATA.filter(r=>r.type==='self').forEach(r=>{
+    const noteText = getTaxNote(r);
+    const extra = TAX_DATA.filter(x=>x.taxYear===r.taxYear && x.type!=='self')
+      .map(x=>`${x.type==='mom'?'媽媽':'爸爸'} 所得${num(x.income)} 退${num(x.refund)}`).join(' ');
+    items.push({
+      cat:'tax', catLabel:'所得稅',
+      year: r.year, yearLabel:`${r.taxYear}年度(民${r.minguo}申報)`,
+      amtLabel: r.refund ? `退稅 NT$ ${num(r.refund)}` : (r.pay ? `補繳 NT$ ${num(r.pay)}` : null),
+      fields: [String(r.taxYear), String(r.minguo), String(r.age), String(r.income||''),
+               String(r.refund||''), String(r.pay||''), r.taxInfo||'', noteText||'', extra].join(' '),
+      note: noteText,
+      summary: `所得總額 ${num(r.income)} 元，${r.refund?'退稅 '+num(r.refund):r.pay?'補繳 '+num(r.pay):''}，${r.taxInfo||''}`
+    });
+  });
+
+  // ---- 房貸保貸：餘額快照 ----
+  LOAN_BALANCE_ROWS.forEach(r=>{
+    const noteText = getLoanNote(r);
+    items.push({
+      cat:'loan', catLabel:'房貸保貸',
+      year: r.year, yearLabel: r.minguo,
+      amtLabel: r.nextJan1Total ? `合計 NT$ ${num(r.nextJan1Total)}` : null,
+      fields: [r.minguo, String(r.age), String(r.jan1.mortgage||''), String(r.jan1.guotai||''),
+               String(r.jan1.yuanhong||''), String(r.nextJan1Total||''), noteText||''].join(' '),
+      note: noteText,
+      summary: `房貸${r.jan1.mortgage?num(r.jan1.mortgage):'—'}，合計${r.nextJan1Total?num(r.nextJan1Total):'—'}`
+    });
+  });
+
+  // ---- 房貸保貸：還款預估 ----
+  MORTGAGE_PLAN_ROWS.forEach(r=>{
+    if(!r.annual && !r.actBalance) return;
+    items.push({
+      cat:'loan', catLabel:'房貸還款預估',
+      year: r.year, yearLabel: r.minguo,
+      amtLabel: r.actBalance ? `實際餘額 NT$ ${num(r.actBalance)}` : (r.estBalance ? `預估餘額 NT$ ${num(r.estBalance)}` : null),
+      fields: [r.minguo, String(r.age), String(r.period||''), String(r.annual||''),
+               String(r.cumRepay||''), String(r.actBalance||''), r.note||''].join(' '),
+      note: r.note,
+      summary: `年度還本 ${num(r.annual)}，累積 ${num(r.cumRepay)}，預估餘額 ${num(r.estBalance)}`
+    });
+  });
+
+  return items;
+}
+
+function doSearch(){
+  const kw = document.getElementById('searchKeyword').value.trim();
+  const yearFrom = parseInt(document.getElementById('searchYearFrom').value) || 0;
+  const yearTo   = parseInt(document.getElementById('searchYearTo').value)   || 9999;
+  const activeCats = [...document.querySelectorAll('.sc:checked')].map(c=>c.value);
+
+  const container = document.getElementById('searchResults');
+  if(!kw && yearFrom===0 && yearTo===9999){
+    container.innerHTML = '<p class="sr-empty">請輸入關鍵字或年份進行搜尋</p>';
+    return;
+  }
+
+  const kwLower = kw.toLowerCase();
+  const index = buildSearchIndex();
+
+  const matched = index.filter(item=>{
+    if(!activeCats.includes(item.cat)) return false;
+    if(item.year < yearFrom || item.year > yearTo) return false;
+    if(kw && !item.fields.toLowerCase().includes(kwLower)) return false;
+    return true;
+  });
+
+  if(!matched.length){
+    container.innerHTML = '<p class="sr-empty">查無符合結果</p>';
+    return;
+  }
+
+  const groups = {};
+  matched.forEach(item=>{
+    const g = item.catLabel;
+    if(!groups[g]) groups[g]=[];
+    groups[g].push(item);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([label, rows])=>{
+    html += `<div class="sr-group"><div class="sr-group-title">${label}（${rows.length}筆）</div>`;
+    rows.forEach(item=>{
+      const noteHl = item.note ? hl(item.note, kw) : '';
+      const summaryHl = hl(item.summary, kw);
+      html += `<div class="sr-item" data-cat="${item.cat}">`
+        + `<div class="sr-head"><span class="sr-year">${hl(item.yearLabel, kw)}</span>`
+        + `<span class="sr-amt">${item.amtLabel||''}</span></div>`
+        + `<div class="sr-body">${summaryHl}${noteHl?'<br>'+noteHl:''}</div>`
+        + `</div>`;
+    });
+    html += '</div>';
+  });
+  container.innerHTML = html;
+
+  container.querySelectorAll('.sr-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const cat = el.dataset.cat;
+      closeSearch();
+      currentView = cat;
+      render();
+    });
+  });
+}
+
+function openSearch(){
+  document.getElementById('searchOverlay').classList.remove('hidden');
+  setTimeout(()=> document.getElementById('searchKeyword').focus(), 100);
+}
+function closeSearch(){
+  document.getElementById('searchOverlay').classList.add('hidden');
+}
+
+render();
+
+document.getElementById('searchOpenBtn').addEventListener('click', openSearch);
+document.getElementById('searchCloseBtn').addEventListener('click', closeSearch);
+document.getElementById('searchOverlay').addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeSearch();
+});
+['searchKeyword','searchYearFrom','searchYearTo'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', doSearch);
+});
+document.querySelectorAll('.sc').forEach(cb=> cb.addEventListener('change', doSearch));
+</script>
+</body>
+</html>
