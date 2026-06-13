@@ -420,11 +420,17 @@ function renderTable(p, rows, curTw){
   html += '</tbody></table></div></div>';
   wrap.innerHTML = html;
 
-  // 自動捲動到目前年度
+  // 自動捲動：讓目前年度列成為表頭下第一列
   setTimeout(()=>{
     const cur = wrap.querySelector('.current-row');
     const scroll = wrap.querySelector('.table-scroll');
-    if(cur && scroll) scroll.scrollTop = cur.offsetTop - scroll.offsetTop - 80;
+    const thead = wrap.querySelector('thead');
+    if(cur && scroll){
+      cur.scrollIntoView({ block:'start' });
+      const theadH = thead ? thead.getBoundingClientRect().height : 0;
+      const diff = cur.getBoundingClientRect().top - scroll.getBoundingClientRect().top - theadH;
+      scroll.scrollTop += diff;
+    }
   }, 0);
 }
 
