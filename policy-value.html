@@ -62,6 +62,8 @@
   .summary-table thead th{background:#F1F8E9; border-top:none; font-weight:600; position:sticky; top:0; z-index:3;}
   .summary-table thead th:first-child{z-index:4; background:#F1F8E9;}
   .summary-table tbody tr.current-row td{background:#FFF8E1; font-weight:600;}
+  .summary-table tbody td.cv-shortfall{color:var(--red); font-weight:600;}
+  .summary-table tbody tr.cv-depleted td{background:#FCE4E4;}
   .table-scroll{overflow-x:auto; max-height:65vh;}
 
   .note-card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; font-size:15px; color:var(--sub); line-height:1.7;}
@@ -158,6 +160,7 @@
 <main>
   <div id="loanCard"></div>
   <div id="calcCard"></div>
+  <div id="compareView"></div>
   <div id="tableView"></div>
   <div class="note-card" id="noteCard"></div>
 </main>
@@ -185,6 +188,12 @@ const YUANXIONG_COMMON = {
   ]
 };
 
+const CALC_COLUMNS = [
+  {f:'tw', t:'民國'}, {f:'ce', t:'西元'}, {f:'age', t:'年齡'},
+  {f:'orig_cv_total', t:'原現價'}, {f:'cv_total', t:'解約後現價'}, {f:'cv_inc', t:'解約後年增現價'},
+  {f:'withdrawn', t:'本年解約金'}, {f:'ann_total', t:'年金(含解約金)'}, {f:'cum_payout', t:'累積解約領回'},
+];
+
 const POLICIES = [
   { key:'總表', label:'現價總表', sub:'國泰+遠雄 合計總表',
     cvField:'sum_cv', incField:'sum_cv_inc', payoutField:'sum_payout', annField:'sum_ann', totalPrem:10600780, payoutLabel:'累積領回',
@@ -197,13 +206,14 @@ const POLICIES = [
     ]},
   { key:'遠雄', label:'遠雄', sub:'',
     ...YUANXIONG_COMMON,
+    baseKey:'遠雄_現價總表', withdrawFields:{cv:'cv_total', inc:'cv_inc', ann:'ann_total'},
     variants:[
       { key:'遠雄_現價總表', label:'現價總表', sub:'資料來源：Nicole的現價總表－遠雄',
         note:'本表資料直接取自「Nicole的現價總表」中的遠雄欄位(總保額/總現價/年增現價/年金)，作為兩組減額試算共用的基準資料。' },
-      { key:'遠雄_減額試算A', label:'減額試算A', sub:'減額繳清即時試算A(可調整參數)', calcType:'reduce', calcKey:'reduceA',
-        note:'以「現價總表」為基準：自設定的減額年齡起，現價＝原現價－減額金額(往後沿用原成長趨勢)；年金＝原年金＋退休金增加金額；累積領回為年金自開始領取起逐年加總。可與「減額試算B」設定不同參數互相對照。' },
-      { key:'遠雄_減額試算B', label:'減額試算B', sub:'減額繳清即時試算B(可調整參數)', calcType:'reduce', calcKey:'reduceB',
-        note:'計算方式與「減額試算A」相同，獨立設定一組參數，方便兩種減額方案即時對照比較。' },
+      { key:'遠雄_減額試算A', label:'解約試算A', sub:'每年定額部分解約即時試算A(可調整參數)', calcType:'withdraw', calcKey:'withdrawA',
+        note:'以「現價總表」為基準：自設定的開始年齡起，每年從現價中提取「每年解約金額」當作退休金；現價＝原現價依原成長趨勢累加後再扣除每年解約金額，直到現價歸零為止；累積解約領回為每年實際解約金額逐年加總。可與「解約試算B」設定不同參數互相對照。' },
+      { key:'遠雄_減額試算B', label:'解約試算B', sub:'每年定額部分解約即時試算B(可調整參數)', calcType:'withdraw', calcKey:'withdrawB',
+        note:'計算方式與「解約試算A」相同，獨立設定一組參數，方便兩種解約方案即時對照比較。' },
     ]},
   { key:'國寶', label:'國寶', sub:'國寶人壽(國泰3張保單合計)',
     cvField:'cv', incField:'cv_inc', payoutField:'cum_payout', annField:'ann', totalPrem:6838300, payoutLabel:'累積領回',
@@ -211,6 +221,15 @@ const POLICIES = [
       {f:'tw', t:'民國'}, {f:'ce', t:'西元'}, {f:'age', t:'年齡'},
       {f:'ins', t:'保額'}, {f:'cv', t:'現價'}, {f:'cv_inc', t:'年增現價'},
       {f:'ann', t:'年金'}, {f:'cum_payout', t:'累積領回'},
+    ],
+    baseKey:'國寶', withdrawFields:{cv:'cv', inc:'cv_inc', ann:'ann'},
+    variants:[
+      { key:'國寶', label:'現價總表', sub:'資料來源：國寶人壽(國泰3張保單合計)',
+        note:'本表資料即「國寶人壽3張保單合計」的現價總表，作為兩組解約試算共用的基準資料。' },
+      { key:'國寶_解約試算A', label:'解約試算A', sub:'每年定額部分解約即時試算A(可調整參數)', calcType:'withdraw', calcKey:'withdrawA',
+        note:'以「現價總表」為基準：自設定的開始年齡起，每年從現價中提取「每年解約金額」當作退休金；現價＝原現價依原成長趨勢累加後再扣除每年解約金額，直到現價歸零為止；累積解約領回為每年實際解約金額逐年加總。可與「解約試算B」設定不同參數互相對照。' },
+      { key:'國寶_解約試算B', label:'解約試算B', sub:'每年定額部分解約即時試算B(可調整參數)', calcType:'withdraw', calcKey:'withdrawB',
+        note:'計算方式與「解約試算A」相同，獨立設定一組參數，方便兩種解約方案即時對照比較。' },
     ]},
 ];
 
@@ -223,13 +242,25 @@ function fmt(n){
   if(n===null || n===undefined || n==='') return '—';
   return 'NT$ ' + Math.round(n).toLocaleString('zh-Hant');
 }
+function num(n){
+  if(n===null || n===undefined || n==='') return '—';
+  return Math.round(n).toLocaleString('zh-Hant');
+}
 
 // 取得目前選定保單的有效設定(若有variants，套用所選variant的key/sub/note，欄位設定沿用父層)
 function getActivePolicy(){
   const p = POLICIES[currentPolicyIdx];
   if(p.variants){
     const v = p.variants[currentVariantIdx];
-    return Object.assign({}, p, { key:v.key, sub:v.sub, note:v.note });
+    const isWithdraw = v.calcType==='withdraw';
+    return Object.assign({}, p, {
+      key:v.key, label:v.label, sub:v.sub, note:v.note, calcType:v.calcType, calcKey:v.calcKey, policyKey:p.key,
+      columns: isWithdraw ? CALC_COLUMNS : p.columns,
+      cvField: isWithdraw ? 'cv_total' : p.cvField,
+      incField: isWithdraw ? 'cv_inc' : p.incField,
+      annField: isWithdraw ? 'ann_total' : p.annField,
+      payoutField: isWithdraw ? 'cum_payout' : p.payoutField,
+    });
   }
   return p;
 }
@@ -267,52 +298,132 @@ function findCurrentRow(rows){
   return rows.find(r=>r.tw===CURRENT_TW) || rows[rows.length-1];
 }
 
-const CALC_KEY = 'policyValueCalcSettings_v1';
-function loadCalcSettings(){
-  const def = {
-    reduceA: { age: 63, amount: 1000000, annInc: 120000 },
-    reduceB: { age: 70, amount: 1500000, annInc: 240000 }
-  };
+const CALC_KEY = 'policyValueCalcSettings_v4';
+const CALC_DEFAULTS = {
+  '遠雄': {
+    withdrawA: { tiers: [
+      { from: 65, to: 69, amount: 150000 },
+      { from: 70, to: 120, amount: 250000 },
+    ]},
+    withdrawB: { tiers: [
+      { from: 70, to: 120, amount: 300000 },
+    ]}
+  },
+  '國寶': {
+    withdrawA: { tiers: [
+      { from: 50, to: 64, amount: 200000 },
+      { from: 65, to: 120, amount: 400000 },
+    ]},
+    withdrawB: { tiers: [
+      { from: 65, to: 120, amount: 600000 },
+    ]}
+  }
+};
+function loadCalcSettings(policyKey){
+  const def = CALC_DEFAULTS[policyKey] || CALC_DEFAULTS['遠雄'];
   try{
-    const saved = JSON.parse(localStorage.getItem(CALC_KEY)) || {};
-    return { reduceA: Object.assign({}, def.reduceA, saved.reduceA), reduceB: Object.assign({}, def.reduceB, saved.reduceB) };
-  }catch(e){ return def; }
+    const all = JSON.parse(localStorage.getItem(CALC_KEY)) || {};
+    const saved = all[policyKey] || {};
+    const norm = (v, d) => {
+      if(!v || !Array.isArray(v.tiers) || v.tiers.length===0) return JSON.parse(JSON.stringify(d));
+      return { tiers: v.tiers.map(t=>({ from:Number(t.from)||0, to:Number(t.to)||0, amount:Number(t.amount)||0 })) };
+    };
+    return { withdrawA: norm(saved.withdrawA, def.withdrawA), withdrawB: norm(saved.withdrawB, def.withdrawB) };
+  }catch(e){ return JSON.parse(JSON.stringify(def)); }
 }
-function saveCalcSettings(s){ localStorage.setItem(CALC_KEY, JSON.stringify(s)); }
+function saveCalcSettings(policyKey, s){
+  let all = {};
+  try{ all = JSON.parse(localStorage.getItem(CALC_KEY)) || {}; }catch(e){}
+  all[policyKey] = s;
+  localStorage.setItem(CALC_KEY, JSON.stringify(all));
+}
 
-// 減額試算：自減額年齡起，現價扣減額金額(沿用原成長趨勢)，年金增加annInc
-function computeReduceRows(baseRows, s){
+// 依年齡找出該年適用的階梯解約金額(若無對應階梯則為0，代表不解約)
+function tierAmountForAge(tiers, age){
+  for(const t of tiers){
+    if(age >= t.from && age <= t.to) return Number(t.amount)||0;
+  }
+  return 0;
+}
+function firstTierStartAge(tiers){
+  if(!tiers.length) return Infinity;
+  return Math.min(...tiers.map(t=>t.from));
+}
+
+// 部分解約試算：依階梯設定，自第一個階梯起，現價先依原成長趨勢增加，再扣除當年階梯對應的解約金額(當作退休金)，
+// 直到現價歸零為止；之後現價維持0，不再產生解約金。
+// fields: {cv, inc, ann} 對應基準資料中現價/年增現價/年金的欄位名稱(遠雄為cv_total/cv_inc/ann_total，國寶為cv/cv_inc/ann)
+// 另外標記：解約後現價(cv_total) < 下一年應解約金額 時，於該欄位加上警示樣式。
+function computeWithdrawRows(baseRows, s, fields){
+  const tiers = s.tiers || [];
+  const startAge = firstTierStartAge(tiers);
   let cumPayout = 0;
-  let started = false;
   let prevCv = null;
-  return baseRows.map(r=>{
-    const reduced = r.age >= s.age;
-    let cv_total = r.cv_total;
-    if(reduced && cv_total!==null){
-      cv_total = Math.max(0, cv_total - s.amount);
-    }
-    let ann_total = r.ann_total;
-    if(reduced){
-      ann_total = (Number(r.ann_total)||0) + (Number(s.annInc)||0);
-      if(ann_total===0) ann_total = null;
-    }
-    const cv_inc = (prevCv!==null && cv_total!==null) ? cv_total - prevCv : r.cv_inc;
-    prevCv = cv_total;
+  let depleted = false;
+  const rows = baseRows.map(r=>{
+    const baseCv = r[fields.cv];
+    const baseInc = r[fields.inc];
+    const baseAnn = r[fields.ann];
+    let cv_total = baseCv;
+    let cv_inc = baseInc;
+    let withdrawn = 0;
+    let ann_total = baseAnn;
+    const amount = tierAmountForAge(tiers, r.age);
 
-    if(ann_total!==null){ started = true; cumPayout += Number(ann_total)||0; }
-    const cum_payout = started ? cumPayout : null;
+    if(r.age >= startAge){
+      if(prevCv===null) prevCv = baseCv; // 起始現價沿用基準資料
+      if(depleted || amount<=0){
+        cv_total = depleted ? 0 : prevCv + (Number(baseInc)||0);
+        cv_inc = depleted ? 0 : (cv_total - prevCv);
+        withdrawn = 0;
+      } else {
+        const grown = prevCv + (Number(baseInc)||0);
+        if(grown <= amount){
+          withdrawn = Math.max(0, grown);
+          cv_total = 0;
+          depleted = true;
+        } else {
+          withdrawn = amount;
+          cv_total = grown - amount;
+        }
+        cv_inc = cv_total - prevCv;
+      }
+      prevCv = cv_total;
+      cumPayout += withdrawn;
+      if(withdrawn>0) ann_total = (Number(baseAnn)||0) + withdrawn;
+    }
 
-    return Object.assign({}, r, { cv_total, cv_inc, ann_total, cum_payout });
+    const cum_payout = (r.age >= startAge) ? cumPayout : null;
+    return Object.assign({}, r, {
+      orig_cv_total: baseCv, cv_total, cv_inc,
+      withdrawn: (r.age>=startAge? withdrawn : null), ann_total, cum_payout,
+      _amount: amount
+    });
   });
+
+  // 標記：解約後現價 < 下一年應解約金額 → 該欄位警示；現價已歸零的列整列標記
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    if(r.cv_total===0 && r.orig_cv_total>0){
+      r.rowClass = 'cv-depleted';
+    } else if(i+1<rows.length){
+      const nextAmount = rows[i+1]._amount;
+      if(r.cv_total!==null && nextAmount>0 && r.cv_total>0 && r.cv_total < nextAmount){
+        r.cellClass = { cv_total: 'cv-shortfall' };
+      }
+    }
+    delete r._amount;
+  }
+  return rows;
 }
 
 function render(){
   renderTabs();
   const p = getActivePolicy();
   let rows;
-  const calcSettings = loadCalcSettings();
-  if(p.calcType==='reduce'){
-    rows = computeReduceRows(SEED_DATA['遠雄_現價總表'] || [], calcSettings[p.calcKey]);
+  const calcSettings = p.calcType==='withdraw' ? loadCalcSettings(p.policyKey) : null;
+  if(p.calcType==='withdraw'){
+    rows = computeWithdrawRows(SEED_DATA[p.baseKey] || [], calcSettings[p.calcKey], p.withdrawFields);
   } else {
     rows = SEED_DATA[p.key] || [];
   }
@@ -343,10 +454,15 @@ function render(){
 
   if(p.calcType){
     document.getElementById('loanCard').innerHTML = '';
-    renderCalc(p, curTw, calcSettings);
+    renderCalc(p, curTw, calcSettings, rows);
   } else {
     document.getElementById('calcCard').innerHTML = '';
     renderLoan(p, curRow, curTw);
+  }
+  if(p.calcType==='withdraw'){
+    renderCompare(p, calcSettings);
+  } else {
+    document.getElementById('compareView').innerHTML = '';
   }
   renderTable(p, rows, curTw);
   renderNote(p);
@@ -358,51 +474,148 @@ function loadLoanSettings(){
 }
 function saveLoanSettings(obj){ localStorage.setItem(LOAN_KEY, JSON.stringify(obj)); }
 
-function renderCalc(p, curTw, calcSettings){
+function renderCalc(p, curTw, calcSettings, rows){
   const wrap = document.getElementById('calcCard');
   const s = calcSettings[p.calcKey];
-  const otherKey = p.calcKey==='reduceA' ? 'reduceB' : 'reduceA';
+  const otherKey = p.calcKey==='withdrawA' ? 'withdrawB' : 'withdrawA';
   const o = calcSettings[otherKey];
-  const otherLabel = p.calcKey==='reduceA' ? '減額試算B' : '減額試算A';
-  const bodyHtml = `
-    <div class="loan-row">
-      <label>減額年齡(歲)</label>
-      <input type="number" id="calcAge" min="46" max="100" step="1" value="${s.age}">
+  const otherLabel = p.calcKey==='withdrawA' ? '解約試算B' : '解約試算A';
+
+  // 找出現價歸零的年齡(若有)
+  let depletedAge = null;
+  for(const r of rows){
+    if(r.cv_total===0 && r.orig_cv_total>0){ depletedAge = r.age; break; }
+  }
+  const depleteInfo = depletedAge ? `現價約於 <b>${depletedAge}歲</b> 用盡。` : '在表格範圍內現價尚未用盡。';
+  const otherDesc = (o.tiers||[]).map(t=>`${t.from}-${t.to}歲每年${fmt(t.amount)}`).join('、') || '(未設定)';
+
+  const tiersHtml = (s.tiers||[]).map((t,idx)=>`
+    <div class="loan-entry" data-idx="${idx}">
+      <div class="loan-entry-row">
+        <label>年齡</label>
+        <input type="number" class="tierFrom" min="0" max="120" value="${t.from}" style="flex:1">
+        <span>～</span>
+        <input type="number" class="tierTo" min="0" max="120" value="${t.to}" style="flex:1">
+        <button class="le-del">✕</button>
+      </div>
+      <div class="loan-entry-row">
+        <label>金額</label>
+        <input type="number" class="tierAmount" min="0" step="10000" value="${t.amount}">
+      </div>
     </div>
-    <div class="loan-row">
-      <label>減額金額(現價)</label>
-      <input type="number" id="calcAmount" min="0" step="10000" value="${s.amount}">
-    </div>
-    <div class="loan-row">
-      <label>退休金增加金額(每年)</label>
-      <input type="number" id="calcAnnInc" min="0" step="10000" value="${s.annInc}">
-    </div>
-  `;
-  const note = `即時試算：自設定的減額年齡起，現價立即減少「減額金額」，往後仍按原有每年現價成長趨勢累加；年金自該年起增加「退休金增加金額」，累積領回則從首次有年金的年度開始逐年加總。<br>對照－${otherLabel}目前設定：${o.age}歲減額${fmt(o.amount)}、年金+${fmt(o.annInc)}/年。`;
+  `).join('');
+
+  const note = `即時試算：依下方各階梯的「年齡區間／每年解約金額」，現價先依原成長趨勢增加，再扣除當年對應的解約金額(當作退休金)；${depleteInfo}現價歸零後不再產生解約金。<span class="cv-shortfall">紅字</span>表示該年解約後現價已低於下一年預計解約金額；紅底列表示現價於該年用盡。<br>對照－${otherLabel}目前設定：${otherDesc}。`;
 
   wrap.innerHTML = `
     <div class="loan-card" id="calcCardInner">
       <h4>${p.label}參數</h4>
       <div class="loan-body" style="display:block;">
-        ${bodyHtml}
+        <div class="loan-entries" id="tierEntries">${tiersHtml}</div>
+        <div class="loan-row">
+          <button id="tierAddEntry" class="loan-add-btn">+ 新增一個年齡階梯</button>
+        </div>
         <div class="loan-note">${note}</div>
       </div>
     </div>
   `;
 
   const persist = ()=>{
-    const all = loadCalcSettings();
-    all[p.calcKey] = {
-      age: Math.max(0, Number(document.getElementById('calcAge').value)||0),
-      amount: Math.max(0, Number(document.getElementById('calcAmount').value)||0),
-      annInc: Math.max(0, Number(document.getElementById('calcAnnInc').value)||0),
-    };
-    saveCalcSettings(all);
+    const all = loadCalcSettings(p.policyKey);
+    const tiers = Array.from(wrap.querySelectorAll('.loan-entry')).map(el=>({
+      from: Math.max(0, Number(el.querySelector('.tierFrom').value)||0),
+      to: Math.max(0, Number(el.querySelector('.tierTo').value)||0),
+      amount: Math.max(0, Number(el.querySelector('.tierAmount').value)||0),
+    }));
+    all[p.calcKey] = { tiers };
+    saveCalcSettings(p.policyKey, all);
     render();
   };
-  document.getElementById('calcAge').onchange = persist;
-  document.getElementById('calcAmount').onchange = persist;
-  document.getElementById('calcAnnInc').onchange = persist;
+
+  document.getElementById('tierAddEntry').onclick = ()=>{
+    const all = loadCalcSettings(p.policyKey);
+    const tiers = all[p.calcKey].tiers.slice();
+    const last = tiers[tiers.length-1];
+    const from = last ? last.to+1 : 65;
+    tiers.push({ from, to: from+4, amount: last ? last.amount : 200000 });
+    all[p.calcKey] = { tiers };
+    saveCalcSettings(p.policyKey, all);
+    render();
+  };
+
+  wrap.querySelectorAll('.loan-entry').forEach(el=>{
+    el.querySelector('.tierFrom').onchange = persist;
+    el.querySelector('.tierTo').onchange = persist;
+    el.querySelector('.tierAmount').onchange = persist;
+    el.querySelector('.le-del').onclick = ()=>{
+      const all = loadCalcSettings(p.policyKey);
+      const idx = Number(el.dataset.idx);
+      const tiers = all[p.calcKey].tiers.slice();
+      tiers.splice(idx,1);
+      all[p.calcKey] = { tiers };
+      saveCalcSettings(p.policyKey, all);
+      render();
+    };
+  });
+}
+
+function findDepletedAge(rows){
+  for(const r of rows){
+    if(r.cv_total===0 && r.orig_cv_total>0) return r.age;
+  }
+  return null;
+}
+
+function renderCompare(p, calcSettings){
+  const wrap = document.getElementById('compareView');
+  const base = SEED_DATA[p.baseKey] || [];
+  const rowsA = computeWithdrawRows(base, calcSettings.withdrawA, p.withdrawFields);
+  const rowsB = computeWithdrawRows(base, calcSettings.withdrawB, p.withdrawFields);
+
+  const depA = findDepletedAge(rowsA);
+  const depB = findDepletedAge(rowsB);
+  const lastA = rowsA[rowsA.length-1], lastB = rowsB[rowsB.length-1];
+  const rowA = depA ? rowsA.find(r=>r.age===depA) : lastA;
+  const rowB = depB ? rowsB.find(r=>r.age===depB) : lastB;
+  const tiersDesc = (tiers)=> (tiers||[]).map(t=>`${t.from}-${t.to}歲/年${fmt(t.amount)}`).join('、') || '(未設定)';
+
+  let rowsHtml = '';
+  for(let i=0;i<rowsA.length;i++){
+    const a = rowsA[i], b = rowsB[i];
+    if(a.cv_total===null && b.cv_total===null && a.cum_payout===null && b.cum_payout===null) continue;
+    const aDep = (a.cv_total===0 && a.orig_cv_total>0);
+    const bDep = (b.cv_total===0 && b.orig_cv_total>0);
+    rowsHtml += `<tr${a.tw===CURRENT_TW?' class="current-row"':''}>
+      <td>${a.age}</td>
+      <td class="${aDep?'cv-shortfall':''}">${a.cv_total!==null?num(a.cv_total):'—'}</td>
+      <td>${a.cum_payout!==null?num(a.cum_payout):'—'}</td>
+      <td class="${bDep?'cv-shortfall':''}">${b.cv_total!==null?num(b.cv_total):'—'}</td>
+      <td>${b.cum_payout!==null?num(b.cum_payout):'—'}</td>
+    </tr>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="summary-table" style="margin-bottom:12px;">
+      <div style="padding:12px 14px;">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <div style="flex:1; background:#F1F8E9; border-radius:8px; padding:8px 10px;">
+            <div style="font-size:13px; color:var(--sub);">解約試算A：${tiersDesc(calcSettings.withdrawA.tiers)}</div>
+            <div style="font-size:14px; margin-top:4px;">${depA?`現價約於 <b>${depA}歲</b> 用盡`:'現價未用盡'}，至${rowA.age}歲累積領回 <b>${num(rowA.cum_payout)}</b></div>
+          </div>
+          <div style="flex:1; background:#F1F8E9; border-radius:8px; padding:8px 10px;">
+            <div style="font-size:13px; color:var(--sub);">解約試算B：${tiersDesc(calcSettings.withdrawB.tiers)}</div>
+            <div style="font-size:14px; margin-top:4px;">${depB?`現價約於 <b>${depB}歲</b> 用盡`:'現價未用盡'}，至${rowB.age}歲累積領回 <b>${num(rowB.cum_payout)}</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="table-scroll" style="max-height:40vh;">
+        <table>
+          <thead><tr><th>年齡</th><th>A現價</th><th>A累積領回</th><th>B現價</th><th>B累積領回</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function renderLoan(p, curRow, curTw){
@@ -502,14 +715,16 @@ function renderTable(p, rows, curTw){
   p.columns.forEach(c=> html += `<th>${c.t}</th>`);
   html += '</tr></thead><tbody>';
   rows.forEach(r=>{
-    const cls = r.tw===curTw ? ' class="current-row"' : '';
-    html += `<tr${cls}>`;
+    let cls = r.tw===curTw ? ' current-row' : '';
+    if(r.rowClass) cls += ' ' + r.rowClass;
+    html += `<tr${cls?` class="${cls.trim()}"`:''}>`;
     p.columns.forEach(c=>{
       const v = r[c.f];
+      const cellCls = (r.cellClass && r.cellClass[c.f]) ? ` class="${r.cellClass[c.f]}"` : '';
       if(c.f==='tw' || c.f==='ce' || c.f==='age'){
-        html += `<td>${v!==null && v!==undefined ? v : '—'}</td>`;
+        html += `<td${cellCls}>${v!==null && v!==undefined ? v : '—'}</td>`;
       } else {
-        html += `<td>${v!==null && v!==undefined ? Number(v).toLocaleString('zh-Hant') : '—'}</td>`;
+        html += `<td${cellCls}>${v!==null && v!==undefined ? Number(v).toLocaleString('zh-Hant') : '—'}</td>`;
       }
     });
     html += '</tr>';
