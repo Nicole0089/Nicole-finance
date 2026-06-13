@@ -36,10 +36,20 @@
   header .year-sub{font-size:15px; opacity:0.85; margin-top:2px;}
   .icon-btn{background:rgba(255,255,255,0.15); border:none; color:#fff; width:34px; height:34px; border-radius:8px; font-size:18px;}
 
-  .summary-cards{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px;}
+  .summary-cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(108px,1fr)); gap:10px; padding:12px 16px;}
   .scard{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px;}
   .scard .lab{font-size:15px; color:var(--sub); margin:0 0 4px;}
   .scard .val{font-size:23px; font-weight:600; margin:0;}
+  .scard .val.diff-up{color:var(--red);}
+  .scard .val.diff-down{color:var(--green);}
+  .scard .val.diff-flat{color:var(--sub);}
+
+  .item-toggle-row{padding:0 16px 10px; display:flex; justify-content:flex-end;}
+  .item-toggle-row button{
+    padding:7px 14px; border-radius:20px; border:1px solid var(--border);
+    background:var(--card); font-size:14px; color:var(--sub);
+  }
+  .item-toggle-row button.active{background:var(--teal); color:#fff; border-color:var(--teal);}
 
   .month-tabs{display:flex; gap:6px; overflow-x:auto; padding:0 16px 10px; -webkit-overflow-scrolling:touch;}
   .month-tabs::-webkit-scrollbar{display:none;}
@@ -142,6 +152,8 @@
   .summary-table table{width:100%; border-collapse:collapse; font-size:17px;}
   .summary-table th,.summary-table td{padding:10px 8px; text-align:right; border-top:1px solid var(--border); white-space:nowrap;}
   .summary-table th:first-child,.summary-table td:first-child{text-align:left; position:sticky; left:0; background:var(--card);}
+  .summary-table th:last-child,.summary-table td:last-child{position:sticky; right:0; background:var(--card); box-shadow:-2px 0 4px rgba(0,0,0,0.06);}
+  .summary-table thead th:last-child{background:#F1F8E9;}
   .summary-table thead th{background:#F1F8E9; border-top:none; font-weight:600;}
   .summary-table .totalrow td{font-weight:600; color:var(--header);}
   .table-scroll{overflow-x:auto;}
@@ -218,6 +230,10 @@
     <p class="lab">本年累計</p>
     <p class="val" id="yearTotal">NT$ 0</p>
   </div>
+  <div class="scard hidden" id="diffCard">
+    <p class="lab">較上月</p>
+    <p class="val" id="diffVal">—</p>
+  </div>
 </div>
 
 <div class="view-toggle">
@@ -227,6 +243,9 @@
 </div>
 
 <div id="monthTabs" class="month-tabs"></div>
+<div id="itemToggleRow" class="item-toggle-row">
+  <button id="toggleEmptyBtn" onclick="toggleShowEmpty()">顯示全部項目</button>
+</div>
 
 <main>
   <div id="monthView"></div>
@@ -280,6 +299,14 @@ const SEED_DATA = {"115": {"months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "d
 const STORAGE_KEY = 'expenseLogData_v1';
 const GROUPS_KEY = 'expenseLogGroups_v1';
 const API_URL_KEY = 'expenseApiUrl_v1';
+const LAST_SYNC_KEY = 'expenseLastSync_v1';
+function setLastSync(){ localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString()); }
+function getLastSyncText(){
+  const v = localStorage.getItem(LAST_SYNC_KEY);
+  if(!v) return '尚未同步';
+  const d = new Date(v);
+  return d.toLocaleString('zh-Hant', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
 const MINGUO_OFFSET = 1911;
 let apiUrl = '';
 let syncing = false;
@@ -290,6 +317,7 @@ let currentYear = 115;
 let currentMonth = 1;
 let currentView = 'month';
 let activityTag = null; // 目前展開檢視的活動標籤
+let showEmptyItems = false; // 月份明細是否顯示金額為空的項目
 
 function loadState(){
   apiUrl = localStorage.getItem(API_URL_KEY) || '';
@@ -358,6 +386,17 @@ function monthTotal(y,m){
   for(const cat in allData[y].data){ t += Number(allData[y].data[cat][m])||0; }
   return t;
 }
+function lastMonthTotal(y, m){
+  const months = (allData[y].months||[]).slice().sort((a,b)=>a-b);
+  const idx = months.indexOf(m);
+  if(idx>0) return monthTotal(y, months[idx-1]);
+  const py = y-1;
+  if(allData[py] && allData[py].months && allData[py].months.length){
+    const pm = allData[py].months.slice().sort((a,b)=>a-b);
+    return monthTotal(py, pm[pm.length-1]);
+  }
+  return null; // 沒有更早的資料可比較
+}
 function groupTotal(y,m,group){
   let t=0;
   group.items.forEach(c=>{
@@ -380,6 +419,8 @@ function render(){
   document.getElementById('yearTotal').textContent = fmt(yearTotal(currentYear));
 
   document.querySelector('.view-toggle').classList.toggle('hidden', currentView==='search');
+  document.getElementById('itemToggleRow').classList.toggle('hidden', currentView!=='month');
+  if(currentView!=='month') document.getElementById('diffCard').classList.add('hidden');
 
   renderMonthTabs();
   if(currentView==='month') renderMonthView();
@@ -411,6 +452,22 @@ function renderMonthView(){
   document.getElementById('monthLabel').textContent = currentMonth + '月支出';
   document.getElementById('monthTotal').textContent = fmt(monthTotal(currentYear, currentMonth));
 
+  const diffCard = document.getElementById('diffCard');
+  const diffVal = document.getElementById('diffVal');
+  const prevTotal = lastMonthTotal(currentYear, currentMonth);
+  if(prevTotal===null){
+    diffCard.classList.add('hidden');
+  } else {
+    diffCard.classList.remove('hidden');
+    const diff = monthTotal(currentYear, currentMonth) - prevTotal;
+    diffVal.className = 'val ' + (diff>0?'diff-up':diff<0?'diff-down':'diff-flat');
+    diffVal.textContent = diff===0 ? '— 持平' : (diff>0?'＋':'－') + fmt(Math.abs(diff));
+  }
+
+  const toggleBtn = document.getElementById('toggleEmptyBtn');
+  toggleBtn.textContent = showEmptyItems ? '只顯示有金額項目' : '顯示全部項目';
+  toggleBtn.classList.toggle('active', showEmptyItems);
+
   const wrap = document.getElementById('monthView');
   wrap.innerHTML = '';
   groups.forEach(g=>{
@@ -423,9 +480,10 @@ function renderMonthView(){
     gdiv.appendChild(head);
 
     g.items.forEach(cat=>{
+      const val = (allData[currentYear].data[cat] && allData[currentYear].data[cat][currentMonth]) || '';
+      if(val==='' && !showEmptyItems) return;
       const row = document.createElement('div');
       row.className = 'item-row';
-      const val = (allData[currentYear].data[cat] && allData[currentYear].data[cat][currentMonth]) || '';
       const note = getNote(currentYear, cat, currentMonth);
       const tag = getTag(currentYear, cat, currentMonth);
       row.innerHTML = `<div class="iname-wrap"><span class="iname">${cat}</span>${note?`<span class="inote">${escapeHtml(note)}</span>`:''}${tag?`<span class="tag-badge">${escapeHtml(tag)}</span>`:''}</div><span class="ival ${val===''?'empty':''}">${val===''?'—':Number(val).toLocaleString('zh-Hant')}</span>`;
@@ -529,6 +587,11 @@ function saveYearNote(year, text, hint){
 }
 
 /* ===================== 互動 ===================== */
+function toggleShowEmpty(){
+  showEmptyItems = !showEmptyItems;
+  render();
+}
+
 function setView(v){
   currentView = v;
   if(v!=='activity') activityTag = null;
@@ -691,6 +754,7 @@ function renderActivityDetail(wrap, tag, activity){
     <div class="activity-detail-head">
       <h4>${escapeHtml(tag)}</h4>
       <div class="ar-actions">
+        <button onclick="quickAddToActivity('${escapeHtml(tag)}')">快速加入</button>
         <button onclick="renameActivityTag('${escapeHtml(tag)}')">重新命名</button>
         <button onclick="deleteActivityTag('${escapeHtml(tag)}')">刪除標籤</button>
       </div>
@@ -718,6 +782,50 @@ function renderActivityDetail(wrap, tag, activity){
       setView('month');
     };
   });
+}
+
+function quickAddToActivity(tag){
+  showModal('快速加入「'+tag+'」', [
+    {label:'選擇要加入的月份(民國年度，例如115)：', type:'info'},
+    {label:'年度', type:'number', value:currentYear, id:'year'},
+    {label:'月份(1-12)', type:'number', value:currentMonth, id:'month'}
+  ], (vals)=>{
+    const year = Number(vals.year);
+    const month = Number(vals.month);
+    if(!allData[year] || !(allData[year].months||[]).includes(month)){ toast('查無此年度/月份的資料'); return; }
+    quickAddPickItems(tag, year, month);
+  }, '下一步');
+}
+
+function quickAddPickItems(tag, year, month){
+  const candidates = [];
+  groups.forEach(g=>{
+    g.items.forEach(cat=>{
+      const val = (allData[year].data[cat] && allData[year].data[cat][month]) || 0;
+      if(!val) return;
+      const existingTag = getTag(year, cat, month);
+      if(existingTag === tag) return;
+      candidates.push({cat, val, existingTag});
+    });
+  });
+  if(!candidates.length){ toast(year+'年'+month+'月沒有可加入的項目(需為有金額且尚未屬於此活動)'); return; }
+  showModal('勾選項目 － '+year+'年'+month+'月', [
+    {label:'以下為該月有金額的項目，勾選後將套用「'+tag+'」標籤：', type:'checklist', id:'items', options: candidates.map(c=>({
+      id: c.cat,
+      label: escapeHtml(c.cat)+'　NT$'+Number(c.val).toLocaleString('zh-Hant')+(c.existingTag?` <span style="color:var(--sub); font-size:13px;">(原標籤：${escapeHtml(c.existingTag)})</span>`:'')
+    }))}
+  ], (vals)=>{
+    const selected = vals.items || [];
+    if(!selected.length){ toast('未選擇任何項目'); return; }
+    selected.forEach(cat=>{
+      setTag(year, cat, month, tag);
+      syncCell(year, cat, month, allData[year].data[cat][month], getNote(year, cat, month), tag);
+    });
+    saveData();
+    activityTag = tag;
+    render();
+    toast('已將 '+selected.length+' 筆加入「'+tag+'」');
+  }, '加入');
 }
 
 function renameActivityTag(oldTag){
@@ -824,7 +932,7 @@ function bindRowPress(row, cat, val, group){
   let timer = null, longPressed = false;
   const start = ()=>{
     longPressed = false;
-    timer = setTimeout(()=>{ longPressed = true; deleteCategory(group, cat); }, 600);
+    timer = setTimeout(()=>{ longPressed = true; openItemActions(group, cat); }, 600);
   };
   const cancel = ()=>{ if(timer){ clearTimeout(timer); timer=null; } };
   row.addEventListener('pointerdown', start);
@@ -835,6 +943,27 @@ function bindRowPress(row, cat, val, group){
     if(longPressed){ longPressed = false; e.preventDefault(); e.stopPropagation(); return; }
     editValue(cat, val);
   });
+}
+
+function openItemActions(group, cat){
+  const idx = group.items.indexOf(cat);
+  const actions = [];
+  if(idx>0) actions.push({label:'⬆ 上移', onClick:()=>moveCategory(group, cat, -1)});
+  if(idx<group.items.length-1) actions.push({label:'⬇ 下移', onClick:()=>moveCategory(group, cat, 1)});
+  actions.push({label:'刪除「'+cat+'」', danger:true, onClick:()=>deleteCategory(group, cat)});
+  showActionMenu(cat, actions);
+}
+
+function moveCategory(group, cat, dir){
+  const idx = group.items.indexOf(cat);
+  const newIdx = idx + dir;
+  if(newIdx<0 || newIdx>=group.items.length) return;
+  const tmp = group.items[idx];
+  group.items[idx] = group.items[newIdx];
+  group.items[newIdx] = tmp;
+  saveGroups();
+  syncGroups();
+  render();
 }
 
 function deleteCategory(group, cat){
@@ -870,6 +999,26 @@ function addCategory(group){
 }
 
 /* ===================== 簡易彈窗 ===================== */
+function showActionMenu(title, actions){
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  const m = document.createElement('div');
+  m.className = 'modal';
+  let html = '<h3>'+escapeHtml(title)+'</h3>';
+  actions.forEach(a=>{
+    html += `<button type="button" style="width:100%; padding:11px 0; border-radius:8px; font-size:17px; border:1px solid ${a.danger?'var(--red)':'var(--border)'}; background:#fff; color:${a.danger?'var(--red)':'var(--text)'}; margin-bottom:10px;">${escapeHtml(a.label)}</button>`;
+  });
+  html += `<button type="button" style="width:100%; padding:11px 0; border-radius:8px; font-size:17px; border:1px solid var(--border); background:#fff; color:var(--sub);">取消</button>`;
+  m.innerHTML = html;
+  bg.appendChild(m);
+  document.body.appendChild(bg);
+  const btns = m.querySelectorAll('button');
+  actions.forEach((a,i)=>{
+    btns[i].onclick = ()=>{ bg.remove(); a.onClick(); };
+  });
+  btns[btns.length-1].onclick = ()=> bg.remove();
+}
+
 function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
@@ -884,6 +1033,16 @@ function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
       html += `<textarea id="modal_${f.id}" placeholder="${f.placeholder?escapeHtml(f.placeholder):''}">${f.value!==undefined?escapeHtml(f.value):''}</textarea>`;
     } else if(f.type==='button'){
       html += `<button type="button" onclick="${f.onclick}" style="width:100%; padding:11px 0; border-radius:8px; font-size:17px; border:1px solid ${f.danger?'var(--red)':'var(--border)'}; background:#fff; color:${f.danger?'var(--red)':'var(--text)'}; margin-bottom:12px;">${f.label}</button>`;
+    } else if(f.type==='checklist'){
+      if(f.label) html += '<p style="font-size:15px; color:var(--sub); margin:0 0 8px;">'+f.label+'</p>';
+      html += '<div style="margin-bottom:12px; max-height:280px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">';
+      f.options.forEach((o,idx)=>{
+        html += `<label style="display:flex; align-items:center; gap:10px; padding:10px 12px; font-size:16px; border-bottom:1px solid var(--border);">
+          <input type="checkbox" id="modal_${f.id}_${idx}" style="width:20px; height:20px; flex:0 0 auto;">
+          <span style="flex:1; min-width:0;">${o.label}</span>
+        </label>`;
+      });
+      html += '</div>';
     } else if(f.type==='tag'){
       html += '<label style="font-size:15px; color:var(--sub);">'+f.label+'</label>';
       html += `<input type="text" id="modal_${f.id}" list="modal_${f.id}_list" placeholder="${f.placeholder?escapeHtml(f.placeholder):''}" value="${f.value!==undefined?escapeHtml(f.value):''}">`;
@@ -908,7 +1067,19 @@ function showModal(title, fields, onConfirm, confirmLabel, showCancelDelete){
 
   m.querySelector('#modalConfirm').onclick = ()=>{
     const vals = {};
-    fields.forEach(f=>{ if(f.id) vals[f.id] = m.querySelector('#modal_'+f.id).value; });
+    fields.forEach(f=>{
+      if(!f.id) return;
+      if(f.type==='checklist'){
+        const selected = [];
+        f.options.forEach((o,idx)=>{
+          const cb = m.querySelector('#modal_'+f.id+'_'+idx);
+          if(cb && cb.checked) selected.push(o.id);
+        });
+        vals[f.id] = selected;
+      } else {
+        vals[f.id] = m.querySelector('#modal_'+f.id).value;
+      }
+    });
     bg.remove();
     onConfirm(vals);
   };
@@ -1005,7 +1176,7 @@ async function syncCell(year, category, month, amount, note, tag){
   setSyncIcon('busy');
   try{
     await cloudPost({ action:'set', year, category, month, amount, note, tag });
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
   }catch(err){ setSyncIcon('error'); toast('雲端同步失敗，稍後會自動再試'); }
 }
 
@@ -1014,7 +1185,7 @@ async function syncGroups(){
   setSyncIcon('busy');
   try{
     await cloudPost({ action:'setGroups', groups });
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
   }catch(err){ setSyncIcon('error'); }
 }
 
@@ -1023,7 +1194,7 @@ async function syncDeleteCategory(category){
   setSyncIcon('busy');
   try{
     await cloudPost({ action:'deleteCategory', category });
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
   }catch(err){ setSyncIcon('error'); toast('雲端刪除失敗，稍後會自動再試'); }
 }
 
@@ -1032,7 +1203,7 @@ async function syncYearNote(year, note){
   setSyncIcon('busy');
   try{
     await cloudPost({ action:'setYearNote', year, note });
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
   }catch(err){ setSyncIcon('error'); toast('年度備註雲端同步失敗，稍後會自動再試'); }
 }
 
@@ -1061,7 +1232,7 @@ async function manualSync(){
       render();
       toast('已從雲端同步最新資料');
     }
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
   }catch(err){
     setSyncIcon('error');
     toast('連線失敗：'+err.message);
@@ -1076,7 +1247,7 @@ async function uploadAllToCloud(){
     const yearNotes = {};
     for(const y in allData){ if(allData[y].yearNote) yearNotes[y] = allData[y].yearNote; }
     await cloudPost({ action:'bulkReplace', rows: flatRowsFromData(), groups, yearNotes });
-    setSyncIcon('idle');
+    setSyncIcon('idle'); setLastSync();
     toast('已將本機資料整批上傳到雲端');
   }catch(err){
     setSyncIcon('error');
@@ -1089,6 +1260,7 @@ function openSettings(){
   showModal('雲端同步設定', [
     {label:'貼上Google Apps Script的網頁應用程式網址(.../exec)，每次新增/修改會自動同步。', type:'info'},
     {label:'Apps Script網址', type:'text', value:apiUrl, id:'url'},
+    {label:'上次同步：'+getLastSyncText(), type:'info'},
     {label:'設定完成後，若這是第一次連接，可使用下方按鈕把目前本機資料寫入Sheet；之後其他裝置可用右上角☁圖示「從雲端同步」。', type:'info'},
     {label:'⬆ 上傳本機資料到雲端', type:'button', onclick:'confirmUploadToCloud()', danger:true}
   ], (vals)=>{
